@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Library Circulation Console</title>
+    <link rel="stylesheet" href="./library-catalog.css" />
+    <script>
+      window.LIBRARY_CATALOG_FIREBASE_CONFIG = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT.appspot.com",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID",
+      };
+    </script>
+  </head>
+  <body>
+    <main class="catalog-shell">
+      <div class="ambient ambient-a" aria-hidden="true"></div>
+      <div class="ambient ambient-b" aria-hidden="true"></div>
+
+      <header class="panel hero reveal">
+        <div class="hero-copy">
+          <p class="eyebrow">Staff-operated circulation</p>
+          <h1>Library Circulation Console</h1>
+          <p class="hero-text">
+            Add inventory, open patron sessions, check out books, queue holds,
+            and process returns from one admin-only page.
+          </p>
+        </div>
+        <div class="hero-status">
+          <article class="status-tile">
+            <span class="status-label">Access</span>
+            <strong id="session-label">Signed out</strong>
+            <span id="session-detail">Firebase setup required before sign-in.</span>
+          </article>
+          <article id="setup-notice" class="status-tile status-tile--accent" hidden>
+            <span class="status-label">Setup</span>
+            <strong>Firebase config missing</strong>
+            <span>
+              Update the config block in this page before trying to sign in.
+            </span>
+          </article>
+        </div>
+      </header>
+
+      <section id="login-panel" class="panel reveal">
+        <div class="section-header">
+          <div>
+            <p class="section-tag">Login</p>
+            <h2>Admin Sign-In</h2>
+          </div>
+          <p class="section-copy">
+            Use a seeded Firebase Auth email/password account with a matching
+            admin role document in <code>users/{uid}</code>.
+          </p>
+        </div>
+
+        <form id="login-form" class="form-grid form-grid--compact">
+          <label class="field">
+            <span>Email</span>
+            <input
+              id="login-email"
+              type="email"
+              inputmode="email"
+              autocomplete="username"
+              placeholder="admin@library.org"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input
+              id="login-password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Password"
+              required
+            />
+          </label>
+
+          <div class="form-actions">
+            <button id="login-submit" class="button button--primary" type="submit">
+              Sign in
+            </button>
+          </div>
+        </form>
+
+        <p id="login-feedback" class="feedback" hidden></p>
+      </section>
+
+      <section id="app-shell" hidden>
+        <div class="panel toolbar reveal">
+          <div class="tab-group" role="tablist" aria-label="Library sections">
+            <button
+              class="tab-button tab-button--active"
+              id="tab-inventory"
+              type="button"
+              data-tab="inventory"
+              role="tab"
+              aria-selected="true"
+            >
+              Inventory
+            </button>
+            <button
+              class="tab-button"
+              id="tab-circulation"
+              type="button"
+              data-tab="circulation"
+              role="tab"
+              aria-selected="false"
+            >
+              Circulation
+            </button>
+          </div>
+
+          <div class="toolbar-meta">
+            <span class="admin-chip">
+              <span class="admin-chip__label">Signed in as</span>
+              <strong id="admin-email">admin</strong>
+            </span>
+            <button id="sign-out-button" class="button button--ghost" type="button">
+              Sign out
+            </button>
+          </div>
+        </div>
+
+        <section
+          id="inventory-section"
+          class="panel reveal"
+          role="tabpanel"
+          aria-labelledby="tab-inventory"
+        >
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Inventory</p>
+              <h2>Book Intake</h2>
+            </div>
+            <p class="section-copy">
+              Add a physical copy by barcode, then review live status by title,
+              barcode, and current patron.
+            </p>
+          </div>
+
+          <div class="inventory-layout">
+            <form id="add-book-form" class="panel panel--inset form-card">
+              <h3>Add Book</h3>
+              <label class="field">
+                <span>12-digit barcode</span>
+                <input
+                  id="book-barcode"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="000123456789"
+                  maxlength="12"
+                  required
+                />
+              </label>
+              <label class="field">
+                <span>Title</span>
+                <input
+                  id="book-title"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="The Left Hand of Darkness"
+                  required
+                />
+              </label>
+              <button id="add-book-submit" class="button button--primary" type="submit">
+                Add to inventory
+              </button>
+              <p id="inventory-feedback" class="feedback" hidden></p>
+            </form>
+
+            <div class="panel panel--inset inventory-card">
+              <div class="inventory-card__header">
+                <div>
+                  <h3>Inventory Table</h3>
+                  <p>Search by title or barcode.</p>
+                </div>
+                <label class="field field--search">
+                  <span class="sr-only">Search inventory</span>
+                  <input
+                    id="inventory-search"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search inventory"
+                  />
+                </label>
+              </div>
+
+              <div class="table-wrap">
+                <table class="inventory-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Barcode</th>
+                      <th scope="col">Title</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Current patron</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventory-body"></tbody>
+                </table>
+              </div>
+
+              <div id="inventory-empty" class="empty-state">
+                Inventory will appear here once books are added.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="circulation-section"
+          class="panel reveal"
+          role="tabpanel"
+          aria-labelledby="tab-circulation"
+          hidden
+        >
+          <div class="section-header">
+            <div>
+              <p class="section-tag">Circulation</p>
+              <h2>Patron Session</h2>
+            </div>
+            <p class="section-copy">
+              Scan a patron first, then scan books to check out or place holds.
+              Returns can be processed independently at any time.
+            </p>
+          </div>
+
+          <p id="circulation-banner" class="banner" hidden></p>
+
+          <div class="circulation-layout">
+            <div class="circulation-column">
+              <form id="patron-form" class="panel panel--inset form-card">
+                <h3>Open Patron Session</h3>
+                <label class="field">
+                  <span>Patron barcode</span>
+                  <input
+                    id="patron-barcode"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="000123456789"
+                    maxlength="12"
+                    required
+                  />
+                </label>
+                <button id="patron-submit" class="button button--primary" type="submit">
+                  Load patron
+                </button>
+              </form>
+
+              <section class="panel panel--inset patron-session" aria-live="polite">
+                <div class="patron-session__header">
+                  <div>
+                    <p class="section-tag">Active patron</p>
+                    <h3 id="active-patron-label">No patron loaded</h3>
+                  </div>
+                  <span id="active-patron-created" class="muted-text"></span>
+                </div>
+
+                <div class="metric-row">
+                  <article class="metric-card">
+                    <span class="metric-label">Active loans</span>
+                    <strong id="active-loan-count">0</strong>
+                  </article>
+                  <article class="metric-card">
+                    <span class="metric-label">Queued holds</span>
+                    <strong id="active-hold-count">0</strong>
+                  </article>
+                </div>
+
+                <div class="list-grid">
+                  <div class="list-panel">
+                    <div class="list-panel__header">
+                      <h4>Loans</h4>
+                    </div>
+                    <ul id="active-loans-list" class="record-list">
+                      <li class="record-list__empty">No patron session open.</li>
+                    </ul>
+                  </div>
+
+                  <div class="list-panel">
+                    <div class="list-panel__header">
+                      <h4>Holds</h4>
+                    </div>
+                    <ul id="active-holds-list" class="record-list">
+                      <li class="record-list__empty">No patron session open.</li>
+                    </ul>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="circulation-column">
+              <form id="checkout-form" class="panel panel--inset form-card">
+                <h3>Checkout / Place Hold</h3>
+                <p class="form-card__copy">
+                  If the book is available it is checked out immediately. If it
+                  is already checked out, the patron is queued for the next hold.
+                </p>
+                <label class="field">
+                  <span>Book barcode</span>
+                  <input
+                    id="checkout-book-barcode"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="000123456789"
+                    maxlength="12"
+                    required
+                  />
+                </label>
+                <button
+                  id="checkout-submit"
+                  class="button button--primary"
+                  type="submit"
+                >
+                  Process checkout
+                </button>
+              </form>
+
+              <form id="return-form" class="panel panel--inset form-card">
+                <h3>Return Book</h3>
+                <p class="form-card__copy">
+                  Returning a held book automatically checks it out to the
+                  earliest queued patron.
+                </p>
+                <label class="field">
+                  <span>Book barcode</span>
+                  <input
+                    id="return-book-barcode"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="000123456789"
+                    maxlength="12"
+                    required
+                  />
+                </label>
+                <button id="return-submit" class="button button--primary" type="submit">
+                  Process return
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

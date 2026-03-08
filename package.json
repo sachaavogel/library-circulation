@@ -1,0 +1,14 @@
+{
+  "name": "library-circulation-console",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "seed:admin": "node ./scripts/seed-admin.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2"
+  }
+}
