@@ -5,10 +5,11 @@ import {
   doc,
   getDoc,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
 } from "./firebase-init.js";
-import { USER_ROLE } from "./shared.js";
+import { ACCESS_MODE, USER_ROLE } from "./shared.js";
 
 async function readAdminUser(uid, fallbackEmail = "") {
   assertFirebaseReady();
@@ -30,7 +31,18 @@ async function readAdminUser(uid, fallbackEmail = "") {
     uid,
     email: userData.email || fallbackEmail,
     role: userData.role,
+    access: ACCESS_MODE.admin,
     createdAt: userData.createdAt || null,
+  };
+}
+
+function buildGuestSession(user) {
+  return {
+    uid: user.uid,
+    email: "Guest mode",
+    role: ACCESS_MODE.guest,
+    access: ACCESS_MODE.guest,
+    createdAt: null,
   };
 }
 
@@ -59,17 +71,28 @@ export async function signInAdmin(email, password) {
   }
 }
 
-export async function signOutAdmin() {
+export async function signInGuest() {
+  assertFirebaseReady();
+  const credentials = await signInAnonymously(auth);
+  return buildGuestSession(credentials.user);
+}
+
+export async function signOutSession() {
   assertFirebaseReady();
   await signOut(auth);
 }
 
-export function watchAdminSession(onSessionChange, onError) {
+export function watchLibrarySession(onSessionChange, onError) {
   assertFirebaseReady();
 
   return onAuthStateChanged(auth, async (user) => {
     if (!user) {
       onSessionChange(null);
+      return;
+    }
+
+    if (user.isAnonymous) {
+      onSessionChange(buildGuestSession(user));
       return;
     }
 

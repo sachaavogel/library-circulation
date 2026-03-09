@@ -104,6 +104,21 @@ export function createCirculationView({
       returnSubmit.disabled = isPending;
       returnSubmit.textContent = isPending ? "Processing..." : "Process return";
     },
+    setReturnVisible(isVisible) {
+      returnForm.hidden = !isVisible;
+
+      if (!isVisible) {
+        returnInput.disabled = true;
+        returnSubmit.disabled = true;
+        returnSubmit.textContent = "Process return";
+        returnInput.value = "";
+        return;
+      }
+
+      returnInput.disabled = false;
+      returnSubmit.disabled = false;
+      returnSubmit.textContent = "Process return";
+    },
     setCheckoutEnabled(isEnabled) {
       checkoutInput.disabled = !isEnabled;
       checkoutSubmit.disabled = !isEnabled;
@@ -126,10 +141,14 @@ export function createCirculationView({
     renderPatronSession(session) {
       patronLabel.textContent = session.patron.barcode;
       patronCreated.textContent = session.createdOnLoad
-        ? "Created new patron record on this scan."
-        : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
-      activeLoanCount.textContent = String(session.activeLoans.length);
-      activeHoldCount.textContent = String(session.activeHolds.length);
+        ? session.detailsLimited
+          ? "Created new patron record on this scan. Guest mode hides detailed loan and hold lists."
+          : "Created new patron record on this scan."
+        : session.detailsLimited
+          ? `Last seen ${formatTimestamp(session.patron.lastSeenAt)}. Guest mode hides detailed loan and hold lists.`
+          : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
+      activeLoanCount.textContent = String(session.patron.activeLoanCount || 0);
+      activeHoldCount.textContent = String(session.patron.activeHoldCount || 0);
 
       renderList(
         activeLoansList,
@@ -139,7 +158,7 @@ export function createCirculationView({
             meta: `${loan.bookBarcode} • checked out ${formatTimestamp(loan.checkedOutAt)}`,
           })
         ),
-        "No active loans."
+        session.detailsLimited ? "Guest mode hides detailed loan list." : "No active loans."
       );
 
       renderList(
@@ -150,7 +169,7 @@ export function createCirculationView({
             meta: `${hold.bookBarcode} • hold #${hold.position} • queued ${formatTimestamp(hold.createdAt)}`,
           })
         ),
-        "No queued holds."
+        session.detailsLimited ? "Guest mode hides detailed hold list." : "No queued holds."
       );
 
       this.setCheckoutEnabled(true);

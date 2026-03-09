@@ -1,4 +1,9 @@
-import { signInAdmin, signOutAdmin, watchAdminSession } from "./auth.js";
+import {
+  signInAdmin,
+  signInGuest,
+  signOutSession,
+  watchLibrarySession,
+} from "./auth.js";
 import { checkoutOrPlaceHold, returnBook } from "./circulation.js";
 import { firebaseConfigReady } from "./firebase-init.js";
 import { addBook, searchInventory, watchInventory } from "./inventory.js";
@@ -6,7 +11,7 @@ import { createCirculationView } from "./circulation-view.js";
 import { createInventoryView } from "./inventory-view.js";
 import { createLoginView } from "./login-view.js";
 import { loadPatronSession } from "./patrons.js";
-import { TAB, getErrorMessage } from "./shared.js";
+import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
 const sessionDetail = document.getElementById("session-detail");
@@ -20,7 +25,7 @@ const inventoryTabButton = document.getElementById("tab-inventory");
 const circulationTabButton = document.getElementById("tab-circulation");
 
 const state = {
-  admin: null,
+  session: null,
   activeTab: TAB.inventory,
   activePatronBarcode: null,
   inventoryUnsubscribe: null,
@@ -28,6 +33,7 @@ const state = {
 
 const loginView = createLoginView({
   onSubmit: handleLogin,
+  onGuestSubmit: handleGuestEntry,
 });
 
 const inventoryView = createInventoryView({
@@ -47,7 +53,7 @@ signOutButton.addEventListener("click", async () => {
   signOutButton.disabled = true;
 
   try {
-    await signOutAdmin();
+    await signOutSession();
   } catch (error) {
     circulationView.showBanner("error", getErrorMessage(error, "Unable to sign out."));
   } finally {
@@ -66,20 +72,48 @@ if (!firebaseConfigReady) {
   );
 } else {
   sessionLabel.textContent = "Signed out";
-  sessionDetail.textContent = "Sign in with a seeded admin account to begin.";
+  sessionDetail.textContent = "Sign in as admin or continue as guest.";
   loginView.focus();
 
-  watchAdminSession(handleAuthChange, (error) => {
+  watchLibrarySession(handleAuthChange, (error) => {
     loginView.setMessage("error", getErrorMessage(error));
   });
 }
 
+function isAdminSession() {
+  return state.session?.access === ACCESS_MODE.admin;
+}
+
+function hasCirculationAccess() {
+  return Boolean(state.session);
+}
+
+function syncAccessModeUi() {
+  const adminSession = isAdminSession();
+
+  inventoryTabButton.hidden = !adminSession;
+  circulationView.setReturnVisible(adminSession);
+
+  if (!adminSession && state.inventoryUnsubscribe) {
+    state.inventoryUnsubscribe();
+    state.inventoryUnsubscribe = null;
+  }
+
+  if (!adminSession) {
+    inventorySection.hidden = true;
+  }
+}
+
 function selectTab(tabName) {
+  if (tabName === TAB.inventory && !isAdminSession()) {
+    tabName = TAB.circulation;
+  }
+
   state.activeTab = tabName;
 
   const inventoryActive = tabName === TAB.inventory;
 
-  inventorySection.hidden = !inventoryActive;
+  inventorySection.hidden = !isAdminSession() || !inventoryActive;
   circulationSection.hidden = inventoryActive;
 
   inventoryTabButton.classList.toggle("tab-button--active", inventoryActive);
@@ -90,30 +124,48 @@ function selectTab(tabName) {
 }
 
 function handleAuthChange(admin) {
-  state.admin = admin;
+  state.session = admin;
+  state.activePatronBarcode = null;
+  circulationView.clearPatronSession();
+  circulationView.clearBanner();
 
   if (admin) {
     loginView.hide();
     loginView.resetPassword();
     appShell.hidden = false;
-    adminEmail.textContent = admin.email || admin.uid;
-    sessionLabel.textContent = "Admin authenticated";
-    sessionDetail.textContent = `Role: ${admin.role}`;
-    beginInventoryWatch();
-    selectTab(state.activeTab);
+    adminEmail.textContent =
+      admin.access === ACCESS_MODE.guest ? "Guest mode" : admin.email || admin.uid;
+    sessionLabel.textContent =
+      admin.access === ACCESS_MODE.guest ? "Guest session" : "Admin authenticated";
+    sessionDetail.textContent =
+      admin.access === ACCESS_MODE.guest
+        ? "Circulation only. Inventory and returns require admin sign-in."
+        : `Role: ${admin.role}`;
+    signOutButton.textContent =
+      admin.access === ACCESS_MODE.guest ? "Exit guest" : "Sign out";
+    syncAccessModeUi();
+
+    if (isAdminSession()) {
+      beginInventoryWatch();
+      selectTab(state.activeTab);
+    } else {
+      inventoryView.setMessage("", "");
+      selectTab(TAB.circulation);
+    }
+
     return;
   }
 
   adminEmail.textContent = "admin";
   sessionLabel.textContent = "Signed out";
-  sessionDetail.textContent = "Sign in with a seeded admin account to begin.";
+  sessionDetail.textContent = "Sign in as admin or continue as guest.";
+  signOutButton.textContent = "Sign out";
   appShell.hidden = true;
   loginView.show();
   loginView.focus();
   inventoryView.setMessage("", "");
-  circulationView.clearBanner();
-  circulationView.clearPatronSession();
-  state.activePatronBarcode = null;
+  circulationView.setReturnVisible(true);
+  inventoryTabButton.hidden = false;
 
   if (state.inventoryUnsubscribe) {
     state.inventoryUnsubscribe();
@@ -153,6 +205,19 @@ async function handleLogin({ email, password }) {
   }
 }
 
+async function handleGuestEntry() {
+  loginView.setPending(true);
+  loginView.setMessage("", "");
+
+  try {
+    await signInGuest();
+  } catch (error) {
+    loginView.setMessage("error", getErrorMessage(error, "Unable to continue as guest."));
+  } finally {
+    loginView.setPending(false);
+  }
+}
+
 async function handleAddBook(payload) {
   inventoryView.setPending(true);
   inventoryView.setMessage("", "");
@@ -174,7 +239,9 @@ async function handleLoadPatron(rawPatronBarcode) {
   circulationView.clearBanner();
 
   try {
-    const session = await loadPatronSession(rawPatronBarcode);
+    const session = await loadPatronSession(rawPatronBarcode, {
+      includeDetails: isAdminSession(),
+    });
     state.activePatronBarcode = session.patron.barcode;
     circulationView.renderPatronSession(session);
     circulationView.clearPatronInput();
@@ -199,7 +266,9 @@ async function refreshActivePatronSession() {
   }
 
   try {
-    const session = await loadPatronSession(state.activePatronBarcode);
+    const session = await loadPatronSession(state.activePatronBarcode, {
+      includeDetails: isAdminSession(),
+    });
     circulationView.renderPatronSession(session);
   } catch (error) {
     circulationView.showBanner(
@@ -210,8 +279,8 @@ async function refreshActivePatronSession() {
 }
 
 async function handleCheckout(rawBookBarcode) {
-  if (!state.admin) {
-    circulationView.showBanner("error", "Sign in before processing circulation.");
+  if (!hasCirculationAccess()) {
+    circulationView.showBanner("error", "Sign in or continue as guest before processing circulation.");
     return;
   }
 
@@ -226,7 +295,7 @@ async function handleCheckout(rawBookBarcode) {
     const result = await checkoutOrPlaceHold({
       patronBarcode: state.activePatronBarcode,
       bookBarcode: rawBookBarcode,
-      adminUid: state.admin.uid,
+      actorUid: state.session.uid,
     });
 
     circulationView.showBanner(result.status, result.message);
@@ -236,13 +305,18 @@ async function handleCheckout(rawBookBarcode) {
     circulationView.showBanner("error", getErrorMessage(error, "Unable to process checkout."));
   } finally {
     circulationView.setCheckoutPending(false);
-    circulationView.setCheckoutEnabled(Boolean(state.admin && state.activePatronBarcode));
+    circulationView.setCheckoutEnabled(Boolean(state.session && state.activePatronBarcode));
   }
 }
 
 async function handleReturn(rawBookBarcode) {
-  if (!state.admin) {
+  if (!state.session) {
     circulationView.showBanner("error", "Sign in before processing circulation.");
+    return;
+  }
+
+  if (!isAdminSession()) {
+    circulationView.showBanner("error", "Guest mode cannot return books. Sign in as admin.");
     return;
   }
 
@@ -251,7 +325,7 @@ async function handleReturn(rawBookBarcode) {
   try {
     const result = await returnBook({
       bookBarcode: rawBookBarcode,
-      adminUid: state.admin.uid,
+      adminUid: state.session.uid,
     });
 
     circulationView.showBanner(result.status, result.message);

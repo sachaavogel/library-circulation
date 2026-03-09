@@ -12,24 +12,122 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    function isGuest() {
+      return signedIn() &&
+        request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+
+    function patronKeysAreValid() {
+      return request.resource.data.keys().hasOnly([
+        "barcode",
+        "createdAt",
+        "lastSeenAt",
+        "activeLoanCount",
+        "activeHoldCount",
+        "status"
+      ]);
+    }
+
+    function guestPatronWriteAllowed(patronId) {
+      return patronKeysAreValid() &&
+        request.resource.data.barcode == patronId;
+    }
+
+    function guestBookUpdateAllowed(bookId) {
+      return request.resource.data.keys().hasOnly([
+        "barcode",
+        "title",
+        "normalizedTitle",
+        "status",
+        "currentLoanId",
+        "currentPatronBarcode",
+        "holdCount",
+        "holdQueue",
+        "lastHoldPosition",
+        "createdAt",
+        "updatedAt"
+      ]) &&
+        request.resource.data.barcode == bookId &&
+        request.resource.data.title == resource.data.title &&
+        request.resource.data.normalizedTitle == resource.data.normalizedTitle &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        (
+          (
+            resource.data.status == "available" &&
+            request.resource.data.status == "checked_out" &&
+            request.resource.data.currentLoanId != null &&
+            request.resource.data.currentPatronBarcode != null &&
+            request.resource.data.holdCount == resource.data.holdCount &&
+            request.resource.data.holdQueue == resource.data.holdQueue &&
+            request.resource.data.lastHoldPosition == resource.data.lastHoldPosition
+          ) ||
+          (
+            resource.data.status == "checked_out" &&
+            request.resource.data.status == "checked_out" &&
+            request.resource.data.currentLoanId == resource.data.currentLoanId &&
+            request.resource.data.currentPatronBarcode == resource.data.currentPatronBarcode &&
+            request.resource.data.holdCount >= resource.data.holdCount &&
+            request.resource.data.holdQueue.size() >= resource.data.holdQueue.size() &&
+            request.resource.data.lastHoldPosition >= resource.data.lastHoldPosition
+          )
+        );
+    }
+
+    function guestLoanCreateAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "bookBarcode",
+        "patronBarcode",
+        "status",
+        "checkedOutAt",
+        "returnedAt",
+        "createdByUid",
+        "closedByUid"
+      ]) &&
+        request.resource.data.status == "active" &&
+        request.resource.data.returnedAt == null &&
+        request.resource.data.closedByUid == null &&
+        request.resource.data.createdByUid == request.auth.uid;
+    }
+
+    function guestHoldCreateAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "bookBarcode",
+        "patronBarcode",
+        "status",
+        "createdAt",
+        "fulfilledAt",
+        "position"
+      ]) &&
+        request.resource.data.status == "queued" &&
+        request.resource.data.fulfilledAt == null;
+    }
+
     match /users/{userId} {
       allow read, write: if isAdmin();
     }
 
     match /patrons/{patronId} {
-      allow read, write: if isAdmin();
+      allow get: if isAdmin() || isGuest();
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() || (isGuest() && guestPatronWriteAllowed(patronId));
+      allow delete: if isAdmin();
     }
 
     match /books/{bookId} {
-      allow read, write: if isAdmin();
+      allow get: if isAdmin() || isGuest();
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isGuest() && guestBookUpdateAllowed(bookId));
     }
 
     match /loans/{loanId} {
-      allow read, write: if isAdmin();
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin() || (isGuest() && guestLoanCreateAllowed());
     }
 
     match /holds/{holdId} {
-      allow read, write: if isAdmin();
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin() || (isGuest() && guestHoldCreateAllowed());
     }
 
     match /{document=**} {

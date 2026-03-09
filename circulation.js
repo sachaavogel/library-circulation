@@ -46,15 +46,15 @@ function writePatronCounters(
 export async function checkoutOrPlaceHold({
   patronBarcode: rawPatronBarcode,
   bookBarcode: rawBookBarcode,
-  adminUid,
+  actorUid,
 }) {
   assertFirebaseReady();
 
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
   const bookBarcode = requireBarcode(rawBookBarcode, "Book barcode");
 
-  if (!String(adminUid ?? "").trim()) {
-    throw new Error("Admin user is required for circulation actions.");
+  if (!String(actorUid ?? "").trim()) {
+    throw new Error("A signed-in session is required for circulation actions.");
   }
 
   const loanId = makeLoanId(bookBarcode);
@@ -83,7 +83,7 @@ export async function checkoutOrPlaceHold({
         status: LOAN_STATUS.active,
         checkedOutAt: serverTimestamp(),
         returnedAt: null,
-        createdByUid: adminUid,
+        createdByUid: actorUid,
         closedByUid: null,
       });
 
@@ -179,7 +179,7 @@ export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
   const bookBarcode = requireBarcode(rawBookBarcode, "Book barcode");
 
   if (!String(adminUid ?? "").trim()) {
-    throw new Error("Admin user is required for circulation actions.");
+    throw new Error("An admin session is required for return actions.");
   }
 
   const newLoanId = makeLoanId(bookBarcode);

@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebase
 import {
   getAuth,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -66,6 +67,7 @@ export {
   runTransaction,
   serverTimestamp,
   setDoc,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
   updateDoc,

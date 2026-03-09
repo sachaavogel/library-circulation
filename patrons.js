@@ -81,46 +81,63 @@ export async function ensurePatron(rawPatronBarcode) {
   };
 }
 
-export async function loadPatronSession(rawPatronBarcode) {
+export async function loadPatronSession(rawPatronBarcode, options = {}) {
   assertFirebaseReady();
 
+  const { includeDetails = true } = options;
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
   const ensureResult = await ensurePatron(patronBarcode);
 
   const patronRef = doc(db, "patrons", patronBarcode);
-  const loansQuery = query(
-    collection(db, "loans"),
-    where("patronBarcode", "==", patronBarcode),
-    where("status", "==", LOAN_STATUS.active),
-    orderBy("checkedOutAt", "desc")
-  );
-  const holdsQuery = query(
-    collection(db, "holds"),
-    where("patronBarcode", "==", patronBarcode),
-    where("status", "==", HOLD_STATUS.queued),
-    orderBy("createdAt", "asc")
-  );
+  const patronSnapshot = await getDoc(patronRef);
+  let activeLoans = [];
+  let activeHolds = [];
 
-  const [patronSnapshot, loanSnapshot, holdSnapshot] = await Promise.all([
-    getDoc(patronRef),
-    getDocs(loansQuery),
-    getDocs(holdsQuery),
-  ]);
+  if (includeDetails) {
+    const loansQuery = query(
+      collection(db, "loans"),
+      where("patronBarcode", "==", patronBarcode),
+      where("status", "==", LOAN_STATUS.active),
+      orderBy("checkedOutAt", "desc")
+    );
+    const holdsQuery = query(
+      collection(db, "holds"),
+      where("patronBarcode", "==", patronBarcode),
+      where("status", "==", HOLD_STATUS.queued),
+      orderBy("createdAt", "asc")
+    );
 
-  const activeLoans = loanSnapshot.docs.map(mapSnapshot);
-  const activeHolds = holdSnapshot.docs.map(mapSnapshot);
+    const [loanSnapshot, holdSnapshot] = await Promise.all([
+      getDocs(loansQuery),
+      getDocs(holdsQuery),
+    ]);
 
-  const titleMap = await getBookTitles(
-    activeLoans.map((loan) => loan.bookBarcode).concat(activeHolds.map((hold) => hold.bookBarcode))
-  );
+    activeLoans = loanSnapshot.docs.map(mapSnapshot);
+    activeHolds = holdSnapshot.docs.map(mapSnapshot);
 
-  activeLoans.sort((left, right) =>
-    compareByTimestampDescending(left, right, "checkedOutAt")
-  );
-  activeHolds.sort((left, right) => {
-    const positionDifference = (left.position || 0) - (right.position || 0);
-    return positionDifference || compareByTimestampAscending(left, right, "createdAt");
-  });
+    const titleMap = await getBookTitles(
+      activeLoans
+        .map((loan) => loan.bookBarcode)
+        .concat(activeHolds.map((hold) => hold.bookBarcode))
+    );
+
+    activeLoans.sort((left, right) =>
+      compareByTimestampDescending(left, right, "checkedOutAt")
+    );
+    activeHolds.sort((left, right) => {
+      const positionDifference = (left.position || 0) - (right.position || 0);
+      return positionDifference || compareByTimestampAscending(left, right, "createdAt");
+    });
+
+    activeLoans = activeLoans.map((loan) => ({
+      ...loan,
+      bookTitle: titleMap.get(loan.bookBarcode) || "Unknown title",
+    }));
+    activeHolds = activeHolds.map((hold) => ({
+      ...hold,
+      bookTitle: titleMap.get(hold.bookBarcode) || "Unknown title",
+    }));
+  }
 
   return {
     patron: {
@@ -128,13 +145,8 @@ export async function loadPatronSession(rawPatronBarcode) {
       ...patronSnapshot.data(),
     },
     createdOnLoad: ensureResult.created,
-    activeLoans: activeLoans.map((loan) => ({
-      ...loan,
-      bookTitle: titleMap.get(loan.bookBarcode) || "Unknown title",
-    })),
-    activeHolds: activeHolds.map((hold) => ({
-      ...hold,
-      bookTitle: titleMap.get(hold.bookBarcode) || "Unknown title",
-    })),
+    detailsLimited: !includeDetails,
+    activeLoans,
+    activeHolds,
   };
 }

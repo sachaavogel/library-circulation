@@ -2,6 +2,11 @@ export const USER_ROLE = Object.freeze({
   admin: "admin",
 });
 
+export const ACCESS_MODE = Object.freeze({
+  admin: "admin",
+  guest: "guest",
+});
+
 export const BOOK_STATUS = Object.freeze({
   available: "available",
   checkedOut: "checked_out",
@@ -102,9 +107,11 @@ export function getErrorMessage(error, fallback = "Something went wrong.") {
     const mapped = {
       "auth/invalid-email": "Enter a valid email address.",
       "auth/invalid-credential": "Invalid email or password.",
+      "auth/operation-not-allowed":
+        "Enable Anonymous sign-in in Firebase Authentication to use guest mode.",
       "auth/user-disabled": "This Firebase Auth account has been disabled.",
       "permission-denied":
-        "This account is not authorized for library admin access.",
+        "This session is not allowed to perform that action.",
       aborted: "Another scan updated the same record. Run the action again.",
       unavailable: "Firebase is unavailable right now. Try again in a moment.",
     };

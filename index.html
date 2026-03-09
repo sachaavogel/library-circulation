@@ -30,17 +30,23 @@
           <h1>Library Circulation Console</h1>
           <p class="hero-text">
             Add inventory, open patron sessions, check out books, queue holds,
-            and process returns from one admin-only page.
+            and process returns from one page. Guest mode is circulation-only
+            and cannot add inventory.
           </p>
         </div>
         <div class="hero-status">
           <article class="status-tile">
             <span class="status-label">Access</span>
             <strong id="session-label">Signed out</strong>
-    <span id="session-detail" hidden></span>
-
-                </article>
-                <article id="setup-notice" hidden></article>
+            <span id="session-detail">Sign in as admin or continue as guest.</span>
+          </article>
+          <article id="setup-notice" class="status-tile status-tile--accent" hidden>
+            <span class="status-label">Setup</span>
+            <strong>Firebase config missing</strong>
+            <span>
+              Update the config block in this page before trying to sign in.
+            </span>
+          </article>
         </div>
       </header>
 
@@ -48,10 +54,11 @@
         <div class="section-header">
           <div>
             <p class="section-tag">Login</p>
-            <h2>Admin Sign-In</h2>
+            <h2>Admin Or Guest Access</h2>
           </div>
           <p class="section-copy">
-            Sign in here if you have an admin account with our library.
+            Admins can manage inventory and returns. Guests can load a patron
+            and check out books, but they cannot add inventory.
           </p>
         </div>
 
@@ -82,6 +89,9 @@
           <div class="form-actions">
             <button id="login-submit" class="button button--primary" type="submit">
               Sign in
+            </button>
+            <button id="guest-submit" class="button button--ghost" type="button">
+              Continue as guest
             </button>
           </div>
         </form>
