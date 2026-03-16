@@ -117,10 +117,10 @@ code {
 
 .hero {
   display: grid;
-  gap: 1.5rem;
+  gap: 1.75rem;
   align-items: center;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-  padding: 2rem;
+  padding: 2.2rem;
   overflow: hidden;
   background: linear-gradient(
     180deg,
@@ -129,26 +129,13 @@ code {
   );
 }
 
-.hero::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: -20%;
-  height: 4.6rem;
-  background: linear-gradient(120deg, #0a1339 0%, #1541a5 55%, #0b205f 100%);
-  border-bottom-right-radius: 140px;
-  opacity: 0.85;
-  z-index: 0;
-}
-
 .hero::after {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(31, 107, 255, 0.12), transparent 45%),
-    linear-gradient(315deg, rgba(107, 212, 255, 0.12), transparent 52%);
+    radial-gradient(circle at top left, rgba(31, 107, 255, 0.12), transparent 45%),
+    radial-gradient(circle at 15% 30%, rgba(107, 212, 255, 0.16), transparent 38%);
   pointer-events: none;
 }
 
@@ -160,7 +147,30 @@ code {
 
 .hero-copy {
   display: grid;
-  gap: 1.2rem;
+  gap: 1.4rem;
+  align-items: start;
+}
+
+.hero-title-card {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 1.1rem 1.6rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0b1c56 0%, #1e57cc 55%, #0b2c7a 100%);
+  box-shadow: 0 22px 40px rgba(7, 20, 58, 0.28);
+  overflow: hidden;
+}
+
+.hero-title-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 30%, rgba(255, 255, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.12), transparent 55%);
+  pointer-events: none;
 }
 
 .brand-row {
@@ -168,20 +178,18 @@ code {
   flex-wrap: wrap;
   gap: 1.1rem;
   align-items: center;
-  padding: 0.7rem 1.1rem;
-  border-radius: 999px;
   color: #f6f9ff;
-  background: linear-gradient(120deg, #0b1236 0%, #1a4ac0 60%, #0b1f5f 100%);
-  box-shadow: 0 12px 28px rgba(8, 18, 50, 0.28);
+  position: relative;
+  z-index: 1;
 }
 
 .brand-mark {
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
   border-radius: 999px;
   background: #0a0f2e;
-  padding: 0.35rem;
-  box-shadow: 0 14px 26px rgba(6, 12, 34, 0.3);
+  padding: 0.4rem;
+  box-shadow: 0 16px 28px rgba(6, 12, 34, 0.35);
 }
 
 .brand-copy {
@@ -197,9 +205,14 @@ code {
 .brand-copy h1 {
   color: #f7fbff;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   max-width: none;
   text-shadow: 0 2px 10px rgba(7, 12, 32, 0.45);
+}
+
+.hero-title-card h1 {
+  font-size: clamp(2.2rem, 4.6vw, 3.6rem);
+  line-height: 1.05;
 }
 
 .eyebrow,
@@ -716,7 +729,17 @@ h4 {
     grid-template-columns: 1fr;
   }
 
+  .hero-title-card {
+    border-radius: 28px;
+    padding: 1.1rem;
+  }
+
   .brand-row {
-    border-radius: 20px;
+    gap: 0.85rem;
+  }
+
+  .brand-mark {
+    width: 54px;
+    height: 54px;
   }
 }
