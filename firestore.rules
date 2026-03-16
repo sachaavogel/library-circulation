@@ -20,6 +20,7 @@ service cloud.firestore {
     function patronKeysAreValid() {
       return request.resource.data.keys().hasOnly([
         "barcode",
+        "name",
         "createdAt",
         "lastSeenAt",
         "activeLoanCount",
@@ -50,27 +51,7 @@ service cloud.firestore {
         request.resource.data.barcode == bookId &&
         request.resource.data.title == resource.data.title &&
         request.resource.data.normalizedTitle == resource.data.normalizedTitle &&
-        request.resource.data.createdAt == resource.data.createdAt &&
-        (
-          (
-            resource.data.status == "available" &&
-            request.resource.data.status == "checked_out" &&
-            request.resource.data.currentLoanId != null &&
-            request.resource.data.currentPatronBarcode != null &&
-            request.resource.data.holdCount == resource.data.holdCount &&
-            request.resource.data.holdQueue == resource.data.holdQueue &&
-            request.resource.data.lastHoldPosition == resource.data.lastHoldPosition
-          ) ||
-          (
-            resource.data.status == "checked_out" &&
-            request.resource.data.status == "checked_out" &&
-            request.resource.data.currentLoanId == resource.data.currentLoanId &&
-            request.resource.data.currentPatronBarcode == resource.data.currentPatronBarcode &&
-            request.resource.data.holdCount >= resource.data.holdCount &&
-            request.resource.data.holdQueue.size() >= resource.data.holdQueue.size() &&
-            request.resource.data.lastHoldPosition >= resource.data.lastHoldPosition
-          )
-        );
+        request.resource.data.createdAt == resource.data.createdAt;
     }
 
     function guestLoanCreateAllowed() {
@@ -89,6 +70,24 @@ service cloud.firestore {
         request.resource.data.createdByUid == request.auth.uid;
     }
 
+    function guestLoanUpdateAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "bookBarcode",
+        "patronBarcode",
+        "status",
+        "checkedOutAt",
+        "returnedAt",
+        "createdByUid",
+        "closedByUid"
+      ]) &&
+        resource.data.status == "active" &&
+        request.resource.data.status == "returned" &&
+        request.resource.data.returnedAt != null &&
+        request.resource.data.closedByUid == request.auth.uid &&
+        request.resource.data.bookBarcode == resource.data.bookBarcode &&
+        request.resource.data.patronBarcode == resource.data.patronBarcode;
+    }
+
     function guestHoldCreateAllowed() {
       return request.resource.data.keys().hasOnly([
         "bookBarcode",
@@ -102,8 +101,36 @@ service cloud.firestore {
         request.resource.data.fulfilledAt == null;
     }
 
+    function guestHoldUpdateAllowed() {
+      return request.resource.data.keys().hasOnly([
+        "bookBarcode",
+        "patronBarcode",
+        "status",
+        "createdAt",
+        "fulfilledAt",
+        "position"
+      ]) &&
+        resource.data.status == "queued" &&
+        (request.resource.data.status == "fulfilled_auto_checkout" ||
+          request.resource.data.status == "cancelled") &&
+        request.resource.data.bookBarcode == resource.data.bookBarcode &&
+        request.resource.data.patronBarcode == resource.data.patronBarcode;
+    }
+
+    function guestSessionExists() {
+      return exists(/databases/$(database)/documents/guestSessions/$(request.auth.uid));
+    }
+
+    function guestSessionPatron() {
+      return get(/databases/$(database)/documents/guestSessions/$(request.auth.uid)).data.patronBarcode;
+    }
+
     match /users/{userId} {
       allow read, write: if isAdmin();
+    }
+
+    match /guestSessions/{sessionId} {
+      allow read, write: if isAdmin() || (signedIn() && request.auth.uid == sessionId);
     }
 
     match /patrons/{patronId} {
@@ -121,13 +148,23 @@ service cloud.firestore {
     }
 
     match /loans/{loanId} {
-      allow read, update, delete: if isAdmin();
+      allow get: if isAdmin() || (isGuest() && guestSessionExists() &&
+        resource.data.patronBarcode == guestSessionPatron());
+      allow list: if isAdmin() || (isGuest() && guestSessionExists() &&
+        resource.data.patronBarcode == guestSessionPatron());
+      allow delete: if isAdmin();
       allow create: if isAdmin() || (isGuest() && guestLoanCreateAllowed());
+      allow update: if isAdmin() || (isGuest() && guestLoanUpdateAllowed());
     }
 
     match /holds/{holdId} {
-      allow read, update, delete: if isAdmin();
+      allow get: if isAdmin() || (isGuest() && guestSessionExists() &&
+        resource.data.patronBarcode == guestSessionPatron());
+      allow list: if isAdmin() || (isGuest() && guestSessionExists() &&
+        resource.data.patronBarcode == guestSessionPatron());
+      allow delete: if isAdmin();
       allow create: if isAdmin() || (isGuest() && guestHoldCreateAllowed());
+      allow update: if isAdmin() || (isGuest() && guestHoldUpdateAllowed());
     }
 
     match /{document=**} {

@@ -1,15 +1,15 @@
 :root {
-  --ink: #1e2a27;
-  --ink-soft: #576662;
-  --paper: #f5efdf;
-  --paper-deep: #efe4c7;
-  --panel: rgba(254, 251, 243, 0.88);
-  --panel-strong: rgba(255, 252, 246, 0.94);
-  --line: rgba(45, 62, 57, 0.14);
-  --teal: #1f6a63;
-  --teal-deep: #12463f;
-  --gold: #b8832d;
-  --gold-soft: #e7c98e;
+  --ink: #1c2b4b;
+  --ink-soft: #52607a;
+  --paper: #f3f7ff;
+  --paper-deep: #e5ecfa;
+  --panel: rgba(248, 251, 255, 0.9);
+  --panel-strong: rgba(255, 255, 255, 0.96);
+  --line: rgba(48, 74, 126, 0.16);
+  --teal: #2f6fcb;
+  --teal-deep: #1f4f9e;
+  --gold: #4f8bd9;
+  --gold-soft: #cfe2ff;
   --danger: #a1453a;
   --danger-soft: rgba(161, 69, 58, 0.12);
   --success: #1d6a43;
@@ -35,9 +35,9 @@ body {
   font-family: "Trebuchet MS", "Gill Sans", sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at top left, rgba(231, 201, 142, 0.35), transparent 28rem),
-    radial-gradient(circle at bottom right, rgba(31, 106, 99, 0.18), transparent 30rem),
-    linear-gradient(180deg, #f8f3e7 0%, #efe3cb 100%);
+    radial-gradient(circle at top left, rgba(79, 139, 217, 0.22), transparent 28rem),
+    radial-gradient(circle at bottom right, rgba(47, 111, 203, 0.16), transparent 30rem),
+    linear-gradient(180deg, #f2f6ff 0%, #e6eefb 100%);
 }
 
 button,
@@ -85,7 +85,7 @@ code {
   right: 4vw;
   width: 18rem;
   height: 18rem;
-  background: radial-gradient(circle, rgba(183, 131, 45, 0.38), transparent 70%);
+  background: radial-gradient(circle, rgba(79, 139, 217, 0.32), transparent 70%);
 }
 
 .ambient-b {
@@ -93,7 +93,7 @@ code {
   left: 2vw;
   width: 22rem;
   height: 22rem;
-  background: radial-gradient(circle, rgba(31, 106, 99, 0.28), transparent 70%);
+  background: radial-gradient(circle, rgba(47, 111, 203, 0.24), transparent 70%);
 }
 
 .panel {
@@ -129,8 +129,8 @@ code {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(135deg, rgba(31, 106, 99, 0.05), transparent 45%),
-    linear-gradient(315deg, rgba(183, 131, 45, 0.08), transparent 52%);
+    linear-gradient(135deg, rgba(47, 111, 203, 0.08), transparent 45%),
+    linear-gradient(315deg, rgba(79, 139, 217, 0.1), transparent 52%);
   pointer-events: none;
 }
 
@@ -215,8 +215,8 @@ h4 {
 }
 
 .status-tile--accent {
-  border-color: rgba(183, 131, 45, 0.35);
-  background: rgba(244, 230, 201, 0.9);
+  border-color: rgba(79, 139, 217, 0.4);
+  background: rgba(213, 228, 252, 0.9);
 }
 
 #login-panel,
@@ -317,6 +317,14 @@ h4 {
 .inventory-card,
 .patron-session {
   padding: 1.2rem;
+}
+
+.patron-name-form {
+  display: grid;
+  gap: 0.75rem;
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 0.75rem;
 }
 
 .form-grid {
@@ -492,8 +500,8 @@ h4 {
 }
 
 .status-pill--checked-out {
-  background: rgba(183, 131, 45, 0.16);
-  color: #8a621f;
+  background: rgba(79, 139, 217, 0.16);
+  color: #2f4f7a;
 }
 
 .empty-state {
@@ -627,6 +635,7 @@ h4 {
   }
 
   .form-grid,
+  .patron-name-form,
   .metric-row,
   .list-grid {
     grid-template-columns: 1fr;

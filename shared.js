@@ -53,6 +53,16 @@ export function normalizeTitle(rawValue) {
   return String(rawValue ?? "").trim().replace(/\s+/g, " ");
 }
 
+export function requireName(rawValue) {
+  const name = normalizeTitle(rawValue);
+
+  if (!name) {
+    throw new Error("Name is required.");
+  }
+
+  return name;
+}
+
 export function requireTitle(rawValue) {
   const title = normalizeTitle(rawValue);
 

@@ -9,6 +9,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   where,
 } from "./firebase-init.js";
 import {
@@ -16,6 +17,7 @@ import {
   LOAN_STATUS,
   compareByTimestampAscending,
   compareByTimestampDescending,
+  requireName,
   requireBarcode,
 } from "./shared.js";
 
@@ -40,10 +42,11 @@ async function getBookTitles(bookBarcodes) {
   return titleMap;
 }
 
-export async function ensurePatron(rawPatronBarcode) {
+export async function ensurePatron(rawPatronBarcode, options = {}) {
   assertFirebaseReady();
 
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
+  const name = options.name ? requireName(options.name) : null;
   let created = false;
 
   await runTransaction(db, async (transaction) => {
@@ -51,6 +54,8 @@ export async function ensurePatron(rawPatronBarcode) {
     const patronSnapshot = await transaction.get(patronRef);
 
     if (patronSnapshot.exists()) {
+      const existingName = patronSnapshot.data().name || null;
+      const shouldSetName = name && !existingName;
       created = false;
       transaction.set(
         patronRef,
@@ -58,6 +63,7 @@ export async function ensurePatron(rawPatronBarcode) {
           barcode: patronBarcode,
           lastSeenAt: serverTimestamp(),
           status: "active",
+          ...(shouldSetName ? { name } : {}),
         },
         { merge: true }
       );
@@ -67,6 +73,7 @@ export async function ensurePatron(rawPatronBarcode) {
     created = true;
     transaction.set(patronRef, {
       barcode: patronBarcode,
+      name: name || "",
       createdAt: serverTimestamp(),
       lastSeenAt: serverTimestamp(),
       activeLoanCount: 0,
@@ -86,7 +93,16 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
 
   const { includeDetails = true } = options;
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
-  const ensureResult = await ensurePatron(patronBarcode);
+  const ensureResult = await ensurePatron(patronBarcode, {
+    name: options.patronName,
+  });
+
+  if (options.guestUid) {
+    await setGuestSessionPatron({
+      guestUid: options.guestUid,
+      patronBarcode,
+    });
+  }
 
   const patronRef = doc(db, "patrons", patronBarcode);
   const patronSnapshot = await getDoc(patronRef);
@@ -139,14 +155,67 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
     }));
   }
 
+  const patronData = patronSnapshot.data() || {};
+
   return {
     patron: {
       barcode: patronBarcode,
-      ...patronSnapshot.data(),
+      ...patronData,
     },
     createdOnLoad: ensureResult.created,
     detailsLimited: !includeDetails,
+    needsName: !patronData.name,
     activeLoans,
     activeHolds,
   };
+}
+
+export async function updatePatronName({ patronBarcode, name }) {
+  assertFirebaseReady();
+
+  const barcode = requireBarcode(patronBarcode, "Patron barcode");
+  const cleanName = requireName(name);
+  const patronRef = doc(db, "patrons", barcode);
+
+  await runTransaction(db, async (transaction) => {
+    const patronSnapshot = await transaction.get(patronRef);
+
+    if (!patronSnapshot.exists()) {
+      throw new Error(`Patron ${barcode} does not exist.`);
+    }
+
+    transaction.set(
+      patronRef,
+      {
+        name: cleanName,
+        lastSeenAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+
+  return {
+    barcode,
+    name: cleanName,
+  };
+}
+
+export async function setGuestSessionPatron({ guestUid, patronBarcode }) {
+  assertFirebaseReady();
+
+  if (!String(guestUid || "").trim()) {
+    throw new Error("Guest session is required.");
+  }
+
+  const barcode = requireBarcode(patronBarcode, "Patron barcode");
+  const sessionRef = doc(db, "guestSessions", guestUid);
+
+  await setDoc(
+    sessionRef,
+    {
+      patronBarcode: barcode,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }

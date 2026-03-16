@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
-    <title>Library Circulation Console</title>
+    <title>Grand Oak Athenaeum Circulation</title>
     <link rel="stylesheet" href="./library-catalog.css" />
     <script>
       window.LIBRARY_CATALOG_FIREBASE_CONFIG = {
@@ -26,8 +26,8 @@
 
       <header class="panel hero reveal">
         <div class="hero-copy">
-          <p class="eyebrow">Staff-operated circulation</p>
-          <h1>Library Circulation Console</h1>
+          <p class="eyebrow">Grand Oak Athenaeum</p>
+          <h1>Grand Oak Athenaeum</h1>
           <p class="hero-text">
             Add inventory, open patron sessions, check out books, queue holds,
             and process returns from one page. Guest mode is circulation-only
@@ -57,8 +57,8 @@
             <h2>Admin Or Guest Access</h2>
           </div>
           <p class="section-copy">
-            Admins can manage inventory and returns. Guests can load a patron
-            and check out books, but they cannot add inventory.
+            Admins can manage inventory. Guests can load a patron, view that
+            patron's loans and holds, and check out or return books.
           </p>
         </div>
 
@@ -270,6 +270,30 @@
                   </div>
                   <span id="active-patron-created" class="muted-text"></span>
                 </div>
+
+                <form id="patron-name-form" class="patron-name-form" hidden>
+                  <label class="field">
+                    <span>Patron name (first scan)</span>
+                    <input
+                      id="patron-name-input"
+                      type="text"
+                      autocomplete="off"
+                      placeholder="Enter patron name"
+                      required
+                    />
+                  </label>
+                  <button
+                    id="patron-name-submit"
+                    class="button button--primary"
+                    type="submit"
+                  >
+                    Save name
+                  </button>
+                </form>
+                <p id="patron-name-help" class="muted-text" hidden>
+                  This is the first time this patron barcode has been scanned.
+                  Add a name to help staff identify the patron later.
+                </p>
 
                 <div class="metric-row">
                   <article class="metric-card">

@@ -10,7 +10,7 @@ import { addBook, searchInventory, watchInventory } from "./inventory.js";
 import { createCirculationView } from "./circulation-view.js";
 import { createInventoryView } from "./inventory-view.js";
 import { createLoginView } from "./login-view.js";
-import { loadPatronSession } from "./patrons.js";
+import { loadPatronSession, updatePatronName } from "./patrons.js";
 import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
@@ -45,6 +45,7 @@ const circulationView = createCirculationView({
   onLoadPatron: handleLoadPatron,
   onCheckout: handleCheckout,
   onReturn: handleReturn,
+  onSaveName: handleSavePatronName,
 });
 
 inventoryTabButton.addEventListener("click", () => selectTab(TAB.inventory));
@@ -92,7 +93,7 @@ function syncAccessModeUi() {
   const adminSession = isAdminSession();
 
   inventoryTabButton.hidden = !adminSession;
-  circulationView.setReturnVisible(adminSession);
+  circulationView.setReturnVisible(true);
 
   if (!adminSession && state.inventoryUnsubscribe) {
     state.inventoryUnsubscribe();
@@ -139,7 +140,7 @@ function handleAuthChange(admin) {
       admin.access === ACCESS_MODE.guest ? "Guest session" : "Admin authenticated";
     sessionDetail.textContent =
       admin.access === ACCESS_MODE.guest
-        ? "Circulation only. Inventory and returns require admin sign-in."
+        ? "Circulation enabled. Inventory changes require admin sign-in."
         : `Role: ${admin.role}`;
     signOutButton.textContent =
       admin.access === ACCESS_MODE.guest ? "Exit guest" : "Sign out";
@@ -240,12 +241,14 @@ async function handleLoadPatron(rawPatronBarcode) {
 
   try {
     const session = await loadPatronSession(rawPatronBarcode, {
-      includeDetails: isAdminSession(),
+      includeDetails: true,
+      guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
     state.activePatronBarcode = session.patron.barcode;
     circulationView.renderPatronSession(session);
     circulationView.clearPatronInput();
     circulationView.focusCheckoutInput();
+    circulationView.clearNameInput();
 
     circulationView.showBanner(
       "success",
@@ -260,6 +263,36 @@ async function handleLoadPatron(rawPatronBarcode) {
   }
 }
 
+async function handleSavePatronName(rawName) {
+  if (!state.activePatronBarcode) {
+    circulationView.showBanner("error", "Load a patron before saving a name.");
+    return;
+  }
+
+  circulationView.setNamePending(true);
+  circulationView.clearBanner();
+
+  try {
+    await updatePatronName({
+      patronBarcode: state.activePatronBarcode,
+      name: rawName,
+    });
+
+    const session = await loadPatronSession(state.activePatronBarcode, {
+      includeDetails: true,
+      guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
+    });
+
+    circulationView.renderPatronSession(session);
+    circulationView.clearNameInput();
+    circulationView.showBanner("success", "Saved patron name.");
+  } catch (error) {
+    circulationView.showBanner("error", getErrorMessage(error, "Unable to save patron name."));
+  } finally {
+    circulationView.setNamePending(false);
+  }
+}
+
 async function refreshActivePatronSession() {
   if (!state.activePatronBarcode) {
     return;
@@ -267,7 +300,8 @@ async function refreshActivePatronSession() {
 
   try {
     const session = await loadPatronSession(state.activePatronBarcode, {
-      includeDetails: isAdminSession(),
+      includeDetails: true,
+      guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
     circulationView.renderPatronSession(session);
   } catch (error) {
@@ -315,17 +349,13 @@ async function handleReturn(rawBookBarcode) {
     return;
   }
 
-  if (!isAdminSession()) {
-    circulationView.showBanner("error", "Guest mode cannot return books. Sign in as admin.");
-    return;
-  }
-
   circulationView.setReturnPending(true);
 
   try {
     const result = await returnBook({
       bookBarcode: rawBookBarcode,
-      adminUid: state.session.uid,
+      actorUid: state.session.uid,
+      guestMode: state.session?.access === ACCESS_MODE.guest,
     });
 
     circulationView.showBanner(result.status, result.message);

@@ -2,6 +2,7 @@ import {
   assertFirebaseReady,
   db,
   doc,
+  increment,
   runTransaction,
   serverTimestamp,
 } from "./firebase-init.js";
@@ -38,6 +39,25 @@ function writePatronCounters(
       lastSeenAt: serverTimestamp(),
       activeLoanCount: nextLoanCount,
       activeHoldCount: nextHoldCount,
+    },
+    { merge: true }
+  );
+}
+
+function writePatronCountersIncrement(
+  transaction,
+  patronRef,
+  patronBarcode,
+  { loanDelta = 0, holdDelta = 0 }
+) {
+  transaction.set(
+    patronRef,
+    {
+      barcode: patronBarcode,
+      status: "active",
+      lastSeenAt: serverTimestamp(),
+      activeLoanCount: increment(loanDelta),
+      activeHoldCount: increment(holdDelta),
     },
     { merge: true }
   );
@@ -173,13 +193,17 @@ export async function checkoutOrPlaceHold({
   });
 }
 
-export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
+export async function returnBook({
+  bookBarcode: rawBookBarcode,
+  actorUid,
+  guestMode = false,
+}) {
   assertFirebaseReady();
 
   const bookBarcode = requireBarcode(rawBookBarcode, "Book barcode");
 
-  if (!String(adminUid ?? "").trim()) {
-    throw new Error("An admin session is required for return actions.");
+  if (!String(actorUid ?? "").trim()) {
+    throw new Error("A signed-in session is required for return actions.");
   }
 
   const newLoanId = makeLoanId(bookBarcode);
@@ -203,35 +227,51 @@ export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
     }
 
     const currentLoanRef = doc(db, "loans", bookData.currentLoanId);
-    const currentLoanSnapshot = await transaction.get(currentLoanRef);
+    let currentPatronBarcode = bookData.currentPatronBarcode;
+    let currentPatronSnapshot = null;
 
-    if (!currentLoanSnapshot.exists()) {
-      throw new Error(`Active loan ${bookData.currentLoanId} is missing for ${bookBarcode}.`);
+    if (!guestMode) {
+      const currentLoanSnapshot = await transaction.get(currentLoanRef);
+
+      if (!currentLoanSnapshot.exists()) {
+        throw new Error(`Active loan ${bookData.currentLoanId} is missing for ${bookBarcode}.`);
+      }
+
+      const currentLoanData = currentLoanSnapshot.data();
+      currentPatronBarcode =
+        currentLoanData.patronBarcode || bookData.currentPatronBarcode;
+
+      const currentPatronRef = doc(db, "patrons", currentPatronBarcode);
+      currentPatronSnapshot = await transaction.get(currentPatronRef);
+      writePatronCounters(
+        transaction,
+        currentPatronRef,
+        currentPatronSnapshot,
+        currentPatronBarcode,
+        { loanDelta: -1 }
+      );
     }
-
-    const currentLoanData = currentLoanSnapshot.data();
-    const currentPatronBarcode =
-      currentLoanData.patronBarcode || bookData.currentPatronBarcode;
-    const currentPatronRef = doc(db, "patrons", currentPatronBarcode);
-    const currentPatronSnapshot = await transaction.get(currentPatronRef);
 
     transaction.set(
       currentLoanRef,
       {
         status: LOAN_STATUS.returned,
         returnedAt: serverTimestamp(),
-        closedByUid: adminUid,
+        closedByUid: actorUid,
       },
       { merge: true }
     );
 
-    writePatronCounters(
-      transaction,
-      currentPatronRef,
-      currentPatronSnapshot,
-      currentPatronBarcode,
-      { loanDelta: -1 }
-    );
+    if (guestMode) {
+      if (!currentPatronBarcode) {
+        throw new Error(`Unable to resolve patron for ${bookBarcode}.`);
+      }
+
+      const currentPatronRef = doc(db, "patrons", currentPatronBarcode);
+      writePatronCountersIncrement(transaction, currentPatronRef, currentPatronBarcode, {
+        loanDelta: -1,
+      });
+    }
 
     const holdQueue = getBookQueue(bookData);
 
@@ -261,21 +301,6 @@ export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
     const nextLoanRef = doc(db, "loans", newLoanId);
     const nextPatronRef = doc(db, "patrons", nextHold.patronBarcode);
 
-    const [nextHoldSnapshot, nextPatronSnapshot] = await Promise.all([
-      transaction.get(nextHoldRef),
-      transaction.get(nextPatronRef),
-    ]);
-
-    if (!nextHoldSnapshot.exists()) {
-      throw new Error(`Queued hold ${nextHold.holdId} is missing for ${bookBarcode}.`);
-    }
-
-    const nextHoldData = nextHoldSnapshot.data();
-
-    if (nextHoldData.status !== HOLD_STATUS.queued) {
-      throw new Error(`Hold ${nextHold.holdId} is not queued and cannot be fulfilled.`);
-    }
-
     transaction.set(
       nextHoldRef,
       {
@@ -291,7 +316,7 @@ export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
       status: LOAN_STATUS.active,
       checkedOutAt: serverTimestamp(),
       returnedAt: null,
-      createdByUid: adminUid,
+      createdByUid: actorUid,
       closedByUid: null,
     });
 
@@ -308,13 +333,10 @@ export async function returnBook({ bookBarcode: rawBookBarcode, adminUid }) {
       { merge: true }
     );
 
-    writePatronCounters(
-      transaction,
-      nextPatronRef,
-      nextPatronSnapshot,
-      nextHold.patronBarcode,
-      { loanDelta: 1, holdDelta: -1 }
-    );
+    writePatronCountersIncrement(transaction, nextPatronRef, nextHold.patronBarcode, {
+      loanDelta: 1,
+      holdDelta: -1,
+    });
 
     return {
       action: "return_auto_checkout",

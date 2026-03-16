@@ -37,10 +37,16 @@ export function createCirculationView({
   onLoadPatron,
   onCheckout,
   onReturn,
+  onSaveName,
 }) {
   const patronForm = document.getElementById("patron-form");
   const patronInput = document.getElementById("patron-barcode");
   const patronSubmit = document.getElementById("patron-submit");
+
+  const nameForm = document.getElementById("patron-name-form");
+  const nameInput = document.getElementById("patron-name-input");
+  const nameSubmit = document.getElementById("patron-name-submit");
+  const nameHelp = document.getElementById("patron-name-help");
 
   const checkoutForm = document.getElementById("checkout-form");
   const checkoutInput = document.getElementById("checkout-book-barcode");
@@ -61,6 +67,11 @@ export function createCirculationView({
   patronForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await onLoadPatron(patronInput.value);
+  });
+
+  nameForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await onSaveName(nameInput.value);
   });
 
   checkoutForm.addEventListener("submit", async (event) => {
@@ -89,10 +100,18 @@ export function createCirculationView({
     clearReturnInput() {
       returnInput.value = "";
     },
+    clearNameInput() {
+      nameInput.value = "";
+    },
     setPatronPending(isPending) {
       patronInput.disabled = isPending;
       patronSubmit.disabled = isPending;
       patronSubmit.textContent = isPending ? "Loading..." : "Load patron";
+    },
+    setNamePending(isPending) {
+      nameInput.disabled = isPending;
+      nameSubmit.disabled = isPending;
+      nameSubmit.textContent = isPending ? "Saving..." : "Save name";
     },
     setCheckoutPending(isPending) {
       checkoutInput.disabled = isPending;
@@ -119,6 +138,16 @@ export function createCirculationView({
       returnSubmit.disabled = false;
       returnSubmit.textContent = "Process return";
     },
+    showNamePrompt() {
+      nameForm.hidden = false;
+      nameHelp.hidden = false;
+      nameInput.focus();
+    },
+    hideNamePrompt() {
+      nameForm.hidden = true;
+      nameHelp.hidden = true;
+      nameInput.value = "";
+    },
     setCheckoutEnabled(isEnabled) {
       checkoutInput.disabled = !isEnabled;
       checkoutSubmit.disabled = !isEnabled;
@@ -134,6 +163,7 @@ export function createCirculationView({
       patronCreated.textContent = "";
       activeLoanCount.textContent = "0";
       activeHoldCount.textContent = "0";
+      this.hideNamePrompt();
       renderList(activeLoansList, [], "No patron session open.");
       renderList(activeHoldsList, [], "No patron session open.");
       this.setCheckoutEnabled(false);
@@ -141,14 +171,16 @@ export function createCirculationView({
     renderPatronSession(session) {
       patronLabel.textContent = session.patron.barcode;
       patronCreated.textContent = session.createdOnLoad
-        ? session.detailsLimited
-          ? "Created new patron record on this scan. Guest mode hides detailed loan and hold lists."
-          : "Created new patron record on this scan."
-        : session.detailsLimited
-          ? `Last seen ${formatTimestamp(session.patron.lastSeenAt)}. Guest mode hides detailed loan and hold lists.`
-          : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
-      activeLoanCount.textContent = String(session.patron.activeLoanCount || 0);
-      activeHoldCount.textContent = String(session.patron.activeHoldCount || 0);
+        ? "Created new patron record on this scan."
+        : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
+      activeLoanCount.textContent = String(session.activeLoans.length);
+      activeHoldCount.textContent = String(session.activeHolds.length);
+
+      if (session.needsName) {
+        this.showNamePrompt();
+      } else {
+        this.hideNamePrompt();
+      }
 
       renderList(
         activeLoansList,
@@ -158,7 +190,7 @@ export function createCirculationView({
             meta: `${loan.bookBarcode} • checked out ${formatTimestamp(loan.checkedOutAt)}`,
           })
         ),
-        session.detailsLimited ? "Guest mode hides detailed loan list." : "No active loans."
+        "No active loans."
       );
 
       renderList(
@@ -169,7 +201,7 @@ export function createCirculationView({
             meta: `${hold.bookBarcode} • hold #${hold.position} • queued ${formatTimestamp(hold.createdAt)}`,
           })
         ),
-        session.detailsLimited ? "Guest mode hides detailed hold list." : "No queued holds."
+        "No queued holds."
       );
 
       this.setCheckoutEnabled(true);
