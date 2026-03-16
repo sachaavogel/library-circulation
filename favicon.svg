@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
+  role="img"
+  aria-label="Grand Oak Athenaeum"
+>
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="20%" r="70%">
+      <stop offset="0%" stop-color="#101a4f" />
+      <stop offset="100%" stop-color="#070b2a" />
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6bd4ff" />
+      <stop offset="100%" stop-color="#1f6bff" />
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#9fe2ff" />
+      <stop offset="100%" stop-color="#1f6bff" />
+    </linearGradient>
+    <linearGradient id="pageDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6ec7ff" />
+      <stop offset="100%" stop-color="#0c4ecb" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="244" fill="url(#bg)" />
+  <circle
+    cx="256"
+    cy="256"
+    r="208"
+    fill="none"
+    stroke="url(#ring)"
+    stroke-width="14"
+  />
+
+  <g>
+    <path
+      d="M256 176 C218 150 166 150 116 168 L116 338 C166 320 218 332 256 360 Z"
+      fill="url(#page)"
+    />
+    <path
+      d="M256 176 C294 150 346 150 396 168 L396 338 C346 320 294 332 256 360 Z"
+      fill="url(#pageDark)"
+    />
+    <rect x="246" y="188" width="20" height="176" fill="#d8f0ff" />
+    <path
+      d="M256 146 C222 126 184 122 146 130"
+      fill="none"
+      stroke="url(#ring)"
+      stroke-width="10"
+      stroke-linecap="round"
+    />
+    <path
+      d="M256 146 C290 126 328 122 366 130"
+      fill="none"
+      stroke="url(#ring)"
+      stroke-width="10"
+      stroke-linecap="round"
+    />
+    <path
+      d="M164 188 L228 168"
+      fill="none"
+      stroke="#d1ecff"
+      stroke-width="8"
+      stroke-linecap="round"
+    />
+    <path
+      d="M348 188 L284 168"
+      fill="none"
+      stroke="#c2e6ff"
+      stroke-width="8"
+      stroke-linecap="round"
+    />
+  </g>
+</svg>

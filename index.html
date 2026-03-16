@@ -6,7 +6,15 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <meta name="theme-color" content="#0b1236" />
     <title>Grand Oak Athenaeum Circulation</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./library-catalog.css" />
     <script>
       window.LIBRARY_CATALOG_FIREBASE_CONFIG = {
@@ -26,8 +34,17 @@
 
       <header class="panel hero reveal">
         <div class="hero-copy">
-          <p class="eyebrow">Grand Oak Athenaeum</p>
-          <h1>Grand Oak Athenaeum</h1>
+          <div class="brand-row">
+            <img
+              class="brand-mark"
+              src="./favicon.svg"
+              alt="Grand Oak Athenaeum logo"
+            />
+            <div class="brand-copy">
+              <p class="eyebrow">Library circulation</p>
+              <h1>Grand Oak Athenaeum</h1>
+            </div>
+          </div>
           <p class="hero-text">
             Add inventory, open patron sessions, check out books, queue holds,
             and process returns from one page. Guest mode is circulation-only
