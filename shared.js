@@ -53,6 +53,10 @@ export function normalizeTitle(rawValue) {
   return String(rawValue ?? "").trim().replace(/\s+/g, " ");
 }
 
+export function normalizeEmail(rawValue) {
+  return String(rawValue ?? "").trim().toLowerCase();
+}
+
 export function requireName(rawValue) {
   const name = normalizeTitle(rawValue);
 
@@ -61,6 +65,20 @@ export function requireName(rawValue) {
   }
 
   return name;
+}
+
+export function requireEmail(rawValue) {
+  const email = normalizeEmail(rawValue);
+
+  if (!email) {
+    throw new Error("Email is required.");
+  }
+
+  if (!email.includes("@") || !email.includes(".")) {
+    throw new Error("Enter a valid email address.");
+  }
+
+  return email;
 }
 
 export function requireTitle(rawValue) {

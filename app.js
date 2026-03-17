@@ -19,8 +19,9 @@ import { createInventoryView } from "./inventory-view.js";
 import { createLoginView } from "./login-view.js";
 import {
   clearGuestSessionPatron,
+  getPatronNameMap,
   loadPatronSession,
-  updatePatronName,
+  updatePatronProfile,
 } from "./patrons.js";
 import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
@@ -41,6 +42,8 @@ const state = {
   activePatronBarcode: null,
   inventoryUnsubscribe: null,
   circulationInventoryQuery: "",
+  patronNameCache: new Map(),
+  profileRequired: false,
 };
 
 const loginView = createLoginView({
@@ -59,7 +62,7 @@ const circulationView = createCirculationView({
   onLoadPatron: handleLoadPatron,
   onCheckout: handleCheckout,
   onReturn: handleReturn,
-  onSaveName: handleSavePatronName,
+  onSaveProfile: handleSavePatronProfile,
   onEndPatron: handleEndPatron,
   onHomeSearch: handleCirculationInventorySearch,
 });
@@ -89,7 +92,7 @@ if (!firebaseConfigReady) {
   );
 } else {
   sessionLabel.textContent = "Signed out";
-  sessionDetail.textContent = "Sign in as admin or continue as guest.";
+  sessionDetail.textContent = "Sign in as admin or continue as patron.";
   loginView.focus();
 
   watchLibrarySession(handleAuthChange, (error) => {
@@ -110,6 +113,11 @@ function syncAccessModeUi() {
 
   inventoryTabButton.hidden = !adminSession;
   circulationView.setReturnVisible(true);
+
+  if (!adminSession && state.inventoryUnsubscribe) {
+    state.inventoryUnsubscribe();
+    state.inventoryUnsubscribe = null;
+  }
 
   if (!adminSession) {
     inventorySection.hidden = true;
@@ -138,6 +146,8 @@ function selectTab(tabName) {
 function handleAuthChange(admin) {
   state.session = admin;
   state.activePatronBarcode = null;
+  state.profileRequired = false;
+  state.patronNameCache = new Map();
   circulationView.clearPatronSession();
   circulationView.clearBanner();
   circulationView.setHomeVisible(true);
@@ -147,20 +157,20 @@ function handleAuthChange(admin) {
     loginView.resetPassword();
     appShell.hidden = false;
     adminEmail.textContent =
-      admin.access === ACCESS_MODE.guest ? "Guest mode" : admin.email || admin.uid;
+      admin.access === ACCESS_MODE.guest ? "Patron mode" : admin.email || admin.uid;
     sessionLabel.textContent =
-      admin.access === ACCESS_MODE.guest ? "Guest session" : "Admin authenticated";
+      admin.access === ACCESS_MODE.guest ? "Patron session" : "Admin authenticated";
     sessionDetail.textContent =
       admin.access === ACCESS_MODE.guest
-        ? "Circulation enabled. Inventory changes require admin sign-in."
+        ? "Patron circulation enabled. Inventory changes require admin sign-in."
         : `Role: ${admin.role}`;
     signOutButton.textContent =
-      admin.access === ACCESS_MODE.guest ? "Exit guest" : "Sign out";
+      admin.access === ACCESS_MODE.guest ? "Exit patron" : "Sign out";
+    circulationView.setGuestMode(admin.access === ACCESS_MODE.guest);
     syncAccessModeUi();
 
-    beginInventoryWatch();
-
     if (isAdminSession()) {
+      beginInventoryWatch();
       selectTab(state.activeTab);
     } else {
       inventoryView.setMessage("", "");
@@ -172,11 +182,12 @@ function handleAuthChange(admin) {
 
   adminEmail.textContent = "admin";
   sessionLabel.textContent = "Signed out";
-  sessionDetail.textContent = "Sign in as admin or continue as guest.";
+  sessionDetail.textContent = "Sign in as admin or continue as patron.";
   signOutButton.textContent = "Sign out";
   appShell.hidden = true;
   loginView.show();
   loginView.focus();
+  circulationView.setGuestMode(false);
   inventoryView.setMessage("", "");
   circulationView.setReturnVisible(true);
   inventoryTabButton.hidden = false;
@@ -203,20 +214,54 @@ async function beginInventoryWatch() {
 }
 
 function handleInventorySearch(query) {
-  inventoryView.renderBooks(searchInventory(query));
+  inventoryView.renderBooks(searchInventory(query), state.patronNameCache);
 }
 
 function handleCirculationInventorySearch(query) {
+  if (!isAdminSession()) {
+    return;
+  }
   state.circulationInventoryQuery = query;
   refreshInventoryViews();
 }
 
 function refreshInventoryViews() {
   const inventoryResults = searchInventory(inventoryView.getSearchQuery());
-  inventoryView.renderBooks(inventoryResults);
+  inventoryView.renderBooks(inventoryResults, state.patronNameCache);
 
   const circulationResults = searchInventory(state.circulationInventoryQuery);
-  circulationView.renderInventory(circulationResults, getInventoryStats());
+  if (isAdminSession()) {
+    circulationView.renderInventory(
+      circulationResults,
+      getInventoryStats(),
+      state.patronNameCache
+    );
+  }
+
+  if (isAdminSession()) {
+    hydratePatronNames(circulationResults.concat(inventoryResults));
+  }
+}
+
+async function hydratePatronNames(books) {
+  const barcodes = [
+    ...new Set(books.map((book) => book.currentPatronBarcode).filter(Boolean)),
+  ];
+  const missing = barcodes.filter((barcode) => !state.patronNameCache.has(barcode));
+
+  if (!missing.length) {
+    return;
+  }
+
+  try {
+    const nameMap = await getPatronNameMap(missing);
+    nameMap.forEach((name, barcode) => {
+      state.patronNameCache.set(barcode, name);
+    });
+    refreshInventoryViews();
+  } catch {
+    // Ignore patron-name hydration errors to keep inventory responsive.
+  }
 }
 
 async function handleLogin({ email, password }) {
@@ -239,7 +284,7 @@ async function handleGuestEntry() {
   try {
     await signInGuest();
   } catch (error) {
-    loginView.setMessage("error", getErrorMessage(error, "Unable to continue as guest."));
+    loginView.setMessage("error", getErrorMessage(error, "Unable to continue as patron."));
   } finally {
     loginView.setPending(false);
   }
@@ -303,6 +348,7 @@ async function handleLoadPatron(rawPatronBarcode) {
       guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
     state.activePatronBarcode = session.patron.barcode;
+    state.profileRequired = session.needsProfile;
     circulationView.renderPatronSession(session);
     circulationView.clearPatronInput();
     circulationView.focusCheckoutInput();
@@ -322,33 +368,42 @@ async function handleLoadPatron(rawPatronBarcode) {
   }
 }
 
-async function handleSavePatronName(rawName) {
+async function handleSavePatronProfile({ name, email }) {
   if (!state.activePatronBarcode) {
-    circulationView.showBanner("error", "Load a patron before saving a name.");
+    circulationView.showBanner("error", "Load a patron before saving a profile.");
     return;
   }
 
-  circulationView.setNamePending(true);
+  circulationView.setProfilePending(true);
+  circulationView.setProfileMessage("", "");
   circulationView.clearBanner();
 
   try {
-    await updatePatronName({
+    await updatePatronProfile({
       patronBarcode: state.activePatronBarcode,
-      name: rawName,
+      name,
+      email,
     });
+
+    state.patronNameCache.set(state.activePatronBarcode, name);
 
     const session = await loadPatronSession(state.activePatronBarcode, {
       includeDetails: true,
       guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
 
+    state.profileRequired = false;
     circulationView.renderPatronSession(session);
     circulationView.clearNameInput();
-    circulationView.showBanner("success", "Saved patron name.");
+    circulationView.closeProfileModal();
+    circulationView.showBanner("success", "Saved patron profile.");
   } catch (error) {
-    circulationView.showBanner("error", getErrorMessage(error, "Unable to save patron name."));
+    circulationView.setProfileMessage(
+      "error",
+      getErrorMessage(error, "Unable to save the patron profile.")
+    );
   } finally {
-    circulationView.setNamePending(false);
+    circulationView.setProfilePending(false);
   }
 }
 
@@ -362,6 +417,7 @@ async function refreshActivePatronSession() {
       includeDetails: true,
       guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
+    state.profileRequired = session.needsProfile;
     circulationView.renderPatronSession(session);
   } catch (error) {
     circulationView.showBanner(
@@ -389,6 +445,7 @@ async function handleEndPatron() {
   }
 
   state.activePatronBarcode = null;
+  state.profileRequired = false;
   circulationView.clearPatronSession();
   circulationView.showBanner("info", "Patron session ended.");
   circulationView.focusPatronInput();
@@ -396,12 +453,20 @@ async function handleEndPatron() {
 
 async function handleCheckout(rawBookBarcode) {
   if (!hasCirculationAccess()) {
-    circulationView.showBanner("error", "Sign in or continue as guest before processing circulation.");
+    circulationView.showBanner(
+      "error",
+      "Sign in or continue as patron before processing circulation."
+    );
     return;
   }
 
   if (!state.activePatronBarcode) {
     circulationView.showBanner("error", "Load a patron session before checking out books.");
+    return;
+  }
+
+  if (state.profileRequired) {
+    circulationView.showBanner("error", "Complete the patron profile before checkout.");
     return;
   }
 
@@ -421,7 +486,9 @@ async function handleCheckout(rawBookBarcode) {
     circulationView.showBanner("error", getErrorMessage(error, "Unable to process checkout."));
   } finally {
     circulationView.setCheckoutPending(false);
-    circulationView.setCheckoutEnabled(Boolean(state.session && state.activePatronBarcode));
+    circulationView.setCheckoutEnabled(
+      Boolean(state.session && state.activePatronBarcode && !state.profileRequired)
+    );
   }
 }
 

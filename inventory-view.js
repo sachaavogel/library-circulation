@@ -175,7 +175,7 @@ export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemov
     getSearchQuery() {
       return searchInput.value;
     },
-    renderBooks(books) {
+    renderBooks(books, patronNameMap = new Map()) {
       tableBody.replaceChildren();
       booksByBarcode = new Map(books.map((book) => [book.barcode, book]));
 
@@ -194,7 +194,16 @@ export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemov
         appendCell(row, book.barcode);
         appendCell(row, book.title);
         appendCell(row, createStatusPill(book.status));
-        appendCell(row, book.currentPatronBarcode || "—");
+        const patronBarcode = book.currentPatronBarcode;
+        const patronName = patronBarcode
+          ? patronNameMap.get(patronBarcode) || ""
+          : "";
+        const patronLabelText = patronBarcode
+          ? patronName
+            ? `${patronName} (${patronBarcode})`
+            : patronBarcode
+          : "—";
+        appendCell(row, patronLabelText);
         const actions = document.createElement("div");
         actions.className = "table-actions";
         const editButton = document.createElement("button");

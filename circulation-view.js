@@ -60,7 +60,7 @@ export function createCirculationView({
   onLoadPatron,
   onCheckout,
   onReturn,
-  onSaveName,
+  onSaveProfile,
   onEndPatron,
   onHomeSearch,
 }) {
@@ -77,12 +77,8 @@ export function createCirculationView({
   const checkedOutBooks = document.getElementById("circulation-checkedout-books");
   const holdBooks = document.getElementById("circulation-hold-books");
 
-  const nameForm = document.getElementById("patron-name-form");
-  const nameInput = document.getElementById("patron-name-input");
-  const nameSubmit = document.getElementById("patron-name-submit");
-  const nameHelp = document.getElementById("patron-name-help");
-
   const endSessionButton = document.getElementById("end-patron-session");
+  const editProfileButton = document.getElementById("edit-patron-profile");
   const patronSessionPanel = document.getElementById("patron-session");
 
   const checkoutForm = document.getElementById("checkout-form");
@@ -100,6 +96,21 @@ export function createCirculationView({
   const activeHoldCount = document.getElementById("active-hold-count");
   const activeLoansList = document.getElementById("active-loans-list");
   const activeHoldsList = document.getElementById("active-holds-list");
+  const recentLoansList = document.getElementById("recent-loans-list");
+
+  const profileModal = document.getElementById("patron-profile-modal");
+  const profileForm = document.getElementById("patron-profile-form");
+  const profileNameInput = document.getElementById("patron-profile-name");
+  const profileEmailInput = document.getElementById("patron-profile-email");
+  const profileSubmit = document.getElementById("patron-profile-submit");
+  const profileCancel = document.getElementById("patron-profile-cancel");
+  const profileFeedback = document.getElementById("patron-profile-feedback");
+  const profileSubtitle = document.getElementById("patron-profile-subtitle");
+  const profileBackdrop = profileModal?.querySelector("[data-action='close']");
+
+  let guestMode = false;
+  let profileRequired = false;
+  let currentPatron = null;
 
   patronForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -112,14 +123,45 @@ export function createCirculationView({
     });
   }
 
-  nameForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await onSaveName(nameInput.value);
-  });
+  if (profileForm) {
+    profileForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await onSaveProfile({
+        name: profileNameInput.value,
+        email: profileEmailInput.value,
+      });
+    });
+  }
 
   if (endSessionButton && onEndPatron) {
     endSessionButton.addEventListener("click", async () => {
       await onEndPatron();
+    });
+  }
+
+  if (editProfileButton) {
+    editProfileButton.addEventListener("click", () => {
+      openProfileModal({
+        required: false,
+        name: currentPatron?.name || "",
+        email: currentPatron?.email || "",
+      });
+    });
+  }
+
+  if (profileCancel) {
+    profileCancel.addEventListener("click", () => {
+      if (!profileRequired) {
+        closeProfileModal();
+      }
+    });
+  }
+
+  if (profileBackdrop) {
+    profileBackdrop.addEventListener("click", () => {
+      if (!profileRequired) {
+        closeProfileModal();
+      }
     });
   }
 
@@ -150,17 +192,29 @@ export function createCirculationView({
       returnInput.value = "";
     },
     clearNameInput() {
-      nameInput.value = "";
+      if (profileNameInput) {
+        profileNameInput.value = "";
+      }
+      if (profileEmailInput) {
+        profileEmailInput.value = "";
+      }
     },
     setPatronPending(isPending) {
       patronInput.disabled = isPending;
       patronSubmit.disabled = isPending;
       patronSubmit.textContent = isPending ? "Loading..." : "Load patron";
     },
-    setNamePending(isPending) {
-      nameInput.disabled = isPending;
-      nameSubmit.disabled = isPending;
-      nameSubmit.textContent = isPending ? "Saving..." : "Save name";
+    setProfilePending(isPending) {
+      if (!profileForm) {
+        return;
+      }
+      profileNameInput.disabled = isPending;
+      profileEmailInput.disabled = isPending;
+      profileSubmit.disabled = isPending;
+      profileSubmit.textContent = isPending ? "Saving..." : "Save profile";
+      if (profileCancel) {
+        profileCancel.disabled = isPending;
+      }
     },
     setCheckoutPending(isPending) {
       checkoutInput.disabled = isPending;
@@ -187,19 +241,26 @@ export function createCirculationView({
       returnSubmit.disabled = false;
       returnSubmit.textContent = "Process return";
     },
-    showNamePrompt() {
-      nameForm.hidden = false;
-      nameHelp.hidden = false;
-      nameInput.focus();
+    openProfileModal(options = {}) {
+      openProfileModal(options);
     },
-    hideNamePrompt() {
-      nameForm.hidden = true;
-      nameHelp.hidden = true;
-      nameInput.value = "";
+    closeProfileModal() {
+      closeProfileModal();
     },
     setCheckoutEnabled(isEnabled) {
       checkoutInput.disabled = !isEnabled;
       checkoutSubmit.disabled = !isEnabled;
+    },
+    setProfileMessage(kind, message) {
+      if (profileFeedback) {
+        setFeedbackMessage(profileFeedback, kind, message);
+      }
+    },
+    setGuestMode(isGuest) {
+      guestMode = isGuest;
+      if (guestMode) {
+        this.setHomeVisible(false);
+      }
     },
     showBanner(kind, message) {
       setFeedbackMessage(banner, kind, message);
@@ -212,27 +273,44 @@ export function createCirculationView({
       patronCreated.textContent = "";
       activeLoanCount.textContent = "0";
       activeHoldCount.textContent = "0";
-      this.hideNamePrompt();
+      currentPatron = null;
+      closeProfileModal();
+      if (editProfileButton) {
+        editProfileButton.hidden = true;
+      }
       renderList(activeLoansList, [], "No patron session open.");
       renderList(activeHoldsList, [], "No patron session open.");
+      if (recentLoansList) {
+        renderList(recentLoansList, [], "No patron session open.");
+      }
       this.setCheckoutEnabled(false);
-      this.setHomeVisible(true);
+      if (!guestMode) {
+        this.setHomeVisible(true);
+      } else {
+        this.setHomeVisible(false);
+      }
       if (endSessionButton) {
         endSessionButton.hidden = true;
       }
     },
     renderPatronSession(session) {
-      patronLabel.textContent = session.patron.name || "Name needed";
+      currentPatron = session.patron;
+      patronLabel.textContent = session.patron.name || "Name required";
       patronCreated.textContent = session.createdOnLoad
-        ? "Created new patron record on this scan."
-        : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
+        ? `Created new patron record. Barcode ${session.patron.barcode}.`
+        : `Barcode ${session.patron.barcode} • Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
       activeLoanCount.textContent = String(session.activeLoans.length);
       activeHoldCount.textContent = String(session.activeHolds.length);
 
-      if (session.needsName) {
-        this.showNamePrompt();
+      profileRequired = Boolean(session.needsProfile);
+      if (profileRequired) {
+        openProfileModal({
+          required: true,
+          name: session.patron.name,
+          email: session.patron.email,
+        });
       } else {
-        this.hideNamePrompt();
+        closeProfileModal();
       }
 
       renderList(
@@ -257,10 +335,26 @@ export function createCirculationView({
         "No queued holds."
       );
 
-      this.setCheckoutEnabled(true);
+      if (recentLoansList) {
+        renderList(
+          recentLoansList,
+          session.recentLoans.map((loan) =>
+            buildRecordItem({
+              title: loan.bookTitle,
+              meta: `${loan.bookBarcode} • ${loan.status} • ${formatTimestamp(loan.checkedOutAt)}`,
+            })
+          ),
+          "No recent activity."
+        );
+      }
+
+      this.setCheckoutEnabled(!profileRequired);
       this.setHomeVisible(false);
       if (endSessionButton) {
         endSessionButton.hidden = false;
+      }
+      if (editProfileButton) {
+        editProfileButton.hidden = profileRequired;
       }
     },
     setHomeVisible(isVisible) {
@@ -271,7 +365,7 @@ export function createCirculationView({
         patronSessionPanel.hidden = isVisible;
       }
     },
-    renderInventory(books, stats) {
+    renderInventory(books, stats, patronNameMap = new Map()) {
       if (totalBooks) {
         totalBooks.textContent = String(stats.total ?? 0);
       }
@@ -306,7 +400,16 @@ export function createCirculationView({
         appendCell(row, book.barcode);
         appendCell(row, book.title);
         appendCell(row, createStatusPill(book.status));
-        appendCell(row, book.currentPatronBarcode || "—");
+        const patronBarcode = book.currentPatronBarcode;
+        const patronName = patronBarcode
+          ? patronNameMap.get(patronBarcode) || ""
+          : "";
+        const patronLabelText = patronBarcode
+          ? patronName
+            ? `${patronName} (${patronBarcode})`
+            : patronBarcode
+          : "—";
+        appendCell(row, patronLabelText);
         homeTableBody.append(row);
       });
     },
@@ -314,4 +417,38 @@ export function createCirculationView({
       return homeSearch?.value ?? "";
     },
   };
+
+  function openProfileModal({ required = false, name = "", email = "" } = {}) {
+    if (!profileModal) {
+      return;
+    }
+
+    profileRequired = required;
+    profileModal.hidden = false;
+    profileNameInput.value = name || "";
+    profileEmailInput.value = email || "";
+    if (profileSubtitle) {
+      profileSubtitle.textContent = required
+        ? "First scan requires a name and email for notifications."
+        : "Update the patron name or email.";
+    }
+    if (profileCancel) {
+      profileCancel.hidden = required;
+    }
+    if (profileFeedback) {
+      setFeedbackMessage(profileFeedback, "", "");
+    }
+    profileNameInput.focus();
+  }
+
+  function closeProfileModal() {
+    if (!profileModal) {
+      return;
+    }
+
+    profileModal.hidden = true;
+    if (profileFeedback) {
+      setFeedbackMessage(profileFeedback, "", "");
+    }
+  }
 }

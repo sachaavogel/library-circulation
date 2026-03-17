@@ -40,7 +40,7 @@ export function createLoginView({ onSubmit, onGuestSubmit }) {
       emailInput.disabled = isPending;
       passwordInput.disabled = isPending;
       submitButton.textContent = isPending ? "Signing in..." : "Sign in";
-      guestButton.textContent = isPending ? "Please wait..." : "Continue as guest";
+      guestButton.textContent = isPending ? "Please wait..." : "Continue as patron";
     },
     setMessage(kind, message) {
       setFeedbackMessage(feedback, kind, message);
@@ -51,7 +51,7 @@ export function createLoginView({ onSubmit, onGuestSubmit }) {
       submitButton.disabled = true;
       guestButton.disabled = true;
       submitButton.textContent = "Sign in";
-      guestButton.textContent = "Continue as guest";
+      guestButton.textContent = "Continue as patron";
       setFeedbackMessage(feedback, "info", message);
     },
   };

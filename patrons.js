@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   runTransaction,
@@ -18,6 +19,7 @@ import {
   LOAN_STATUS,
   compareByTimestampAscending,
   compareByTimestampDescending,
+  requireEmail,
   requireName,
   requireBarcode,
 } from "./shared.js";
@@ -48,6 +50,7 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
 
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
   const name = options.name ? requireName(options.name) : null;
+  const email = options.email ? requireEmail(options.email) : null;
   let created = false;
 
   await runTransaction(db, async (transaction) => {
@@ -55,8 +58,11 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
     const patronSnapshot = await transaction.get(patronRef);
 
     if (patronSnapshot.exists()) {
-      const existingName = patronSnapshot.data().name || null;
+      const existingData = patronSnapshot.data() || {};
+      const existingName = existingData.name || null;
+      const existingEmail = existingData.email || null;
       const shouldSetName = name && !existingName;
+      const shouldSetEmail = email && !existingEmail;
       created = false;
       transaction.set(
         patronRef,
@@ -65,6 +71,7 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
           lastSeenAt: serverTimestamp(),
           status: "active",
           ...(shouldSetName ? { name } : {}),
+          ...(shouldSetEmail ? { email } : {}),
         },
         { merge: true }
       );
@@ -75,6 +82,7 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
     transaction.set(patronRef, {
       barcode: patronBarcode,
       name: name || "",
+      email: email || "",
       createdAt: serverTimestamp(),
       lastSeenAt: serverTimestamp(),
       activeLoanCount: 0,
@@ -94,10 +102,6 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
 
   const { includeDetails = true } = options;
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
-  const ensureResult = await ensurePatron(patronBarcode, {
-    name: options.patronName,
-  });
-
   if (options.guestUid) {
     await setGuestSessionPatron({
       guestUid: options.guestUid,
@@ -105,10 +109,16 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
     });
   }
 
+  const ensureResult = await ensurePatron(patronBarcode, {
+    name: options.patronName,
+    email: options.patronEmail,
+  });
+
   const patronRef = doc(db, "patrons", patronBarcode);
   const patronSnapshot = await getDoc(patronRef);
   let activeLoans = [];
   let activeHolds = [];
+  let recentLoans = [];
 
   if (includeDetails) {
     const loansQuery = query(
@@ -124,18 +134,28 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
       orderBy("createdAt", "asc")
     );
 
-    const [loanSnapshot, holdSnapshot] = await Promise.all([
+    const recentLoansQuery = query(
+      collection(db, "loans"),
+      where("patronBarcode", "==", patronBarcode),
+      orderBy("checkedOutAt", "desc"),
+      limit(5)
+    );
+
+    const [loanSnapshot, holdSnapshot, recentSnapshot] = await Promise.all([
       getDocs(loansQuery),
       getDocs(holdsQuery),
+      getDocs(recentLoansQuery),
     ]);
 
     activeLoans = loanSnapshot.docs.map(mapSnapshot);
     activeHolds = holdSnapshot.docs.map(mapSnapshot);
+    recentLoans = recentSnapshot.docs.map(mapSnapshot);
 
     const titleMap = await getBookTitles(
       activeLoans
         .map((loan) => loan.bookBarcode)
         .concat(activeHolds.map((hold) => hold.bookBarcode))
+        .concat(recentLoans.map((loan) => loan.bookBarcode))
     );
 
     activeLoans.sort((left, right) =>
@@ -154,6 +174,10 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
       ...hold,
       bookTitle: titleMap.get(hold.bookBarcode) || "Unknown title",
     }));
+    recentLoans = recentLoans.map((loan) => ({
+      ...loan,
+      bookTitle: titleMap.get(loan.bookBarcode) || "Unknown title",
+    }));
   }
 
   const patronData = patronSnapshot.data() || {};
@@ -165,17 +189,19 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
     },
     createdOnLoad: ensureResult.created,
     detailsLimited: !includeDetails,
-    needsName: ensureResult.created,
+    needsProfile: ensureResult.created,
     activeLoans,
     activeHolds,
+    recentLoans: includeDetails ? recentLoans : [],
   };
 }
 
-export async function updatePatronName({ patronBarcode, name }) {
+export async function updatePatronProfile({ patronBarcode, name, email }) {
   assertFirebaseReady();
 
   const barcode = requireBarcode(patronBarcode, "Patron barcode");
   const cleanName = requireName(name);
+  const cleanEmail = requireEmail(email);
   const patronRef = doc(db, "patrons", barcode);
 
   await runTransaction(db, async (transaction) => {
@@ -189,6 +215,7 @@ export async function updatePatronName({ patronBarcode, name }) {
       patronRef,
       {
         name: cleanName,
+        email: cleanEmail,
         lastSeenAt: serverTimestamp(),
       },
       { merge: true }
@@ -198,6 +225,7 @@ export async function updatePatronName({ patronBarcode, name }) {
   return {
     barcode,
     name: cleanName,
+    email: cleanEmail,
   };
 }
 
@@ -230,4 +258,21 @@ export async function clearGuestSessionPatron({ guestUid }) {
 
   const sessionRef = doc(db, "guestSessions", guestUid);
   await deleteDoc(sessionRef);
+}
+
+export async function getPatronNameMap(barcodes) {
+  assertFirebaseReady();
+
+  const uniqueBarcodes = [...new Set(barcodes)].filter(Boolean);
+  const nameMap = new Map();
+
+  await Promise.all(
+    uniqueBarcodes.map(async (barcode) => {
+      const snapshot = await getDoc(doc(db, "patrons", barcode));
+      const data = snapshot.exists() ? snapshot.data() : null;
+      nameMap.set(barcode, data?.name || "");
+    })
+  );
+
+  return nameMap;
 }

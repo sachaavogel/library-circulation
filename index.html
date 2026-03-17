@@ -51,14 +51,14 @@
         <div class="hero-body">
           <p class="hero-text">
             Add inventory, open patron sessions, check out books, queue holds,
-            and process returns from one page. Guest mode is circulation-only
+            and process returns from one page. Patron mode is circulation-only
             and cannot add inventory.
           </p>
           <div class="hero-status">
             <article class="status-tile">
               <span class="status-label">Access</span>
               <strong id="session-label">Signed out</strong>
-              <span id="session-detail">Sign in as admin or continue as guest.</span>
+            <span id="session-detail">Sign in as admin or continue as patron.</span>
             </article>
             <article id="setup-notice" class="status-tile status-tile--accent" hidden>
               <span class="status-label">Library</span>
@@ -75,11 +75,11 @@
         <div class="section-header">
           <div>
             <p class="section-tag">Login</p>
-            <h2>Admin Or Guest Access</h2>
+            <h2>Admin Or Patron Access</h2>
           </div>
           <p class="section-copy">
-            Admins can manage inventory. Guests can load a patron, view that
-            patron's loans and holds, and check out or return books.
+            Admins manage inventory and circulation. Patron access is for
+            checking out, placing holds, and returning books.
           </p>
         </div>
 
@@ -112,7 +112,7 @@
               Sign in
             </button>
             <button id="guest-submit" class="button button--ghost" type="button">
-              Continue as guest
+              Continue as patron
             </button>
           </div>
         </form>
@@ -404,8 +404,15 @@
                   </div>
                   <div class="patron-session__actions">
                     <button
+                      id="edit-patron-profile"
+                      class="button button--ghost button--small"
+                      type="button"
+                    >
+                      Edit profile
+                    </button>
+                    <button
                       id="end-patron-session"
-                      class="button button--ghost"
+                      class="button button--ghost button--small"
                       type="button"
                     >
                       End session
@@ -413,30 +420,6 @@
                   </div>
                   <span id="active-patron-created" class="muted-text"></span>
                 </div>
-
-                <form id="patron-name-form" class="patron-name-form" hidden>
-                  <label class="field">
-                    <span>Patron name (first scan)</span>
-                    <input
-                      id="patron-name-input"
-                      type="text"
-                      autocomplete="off"
-                      placeholder="Enter patron name"
-                      required
-                    />
-                  </label>
-                  <button
-                    id="patron-name-submit"
-                    class="button button--primary"
-                    type="submit"
-                  >
-                    Save name
-                  </button>
-                </form>
-                <p id="patron-name-help" class="muted-text" hidden>
-                  This is the first time this patron barcode has been scanned.
-                  Add a name to help staff identify the patron later.
-                </p>
 
                 <div class="metric-row">
                   <article class="metric-card">
@@ -464,6 +447,15 @@
                       <h4>Holds</h4>
                     </div>
                     <ul id="active-holds-list" class="record-list">
+                      <li class="record-list__empty">No patron session open.</li>
+                    </ul>
+                  </div>
+
+                  <div class="list-panel">
+                    <div class="list-panel__header">
+                      <h4>Recent activity</h4>
+                    </div>
+                    <ul id="recent-loans-list" class="record-list">
                       <li class="record-list__empty">No patron session open.</li>
                     </ul>
                   </div>
@@ -526,6 +518,67 @@
         </section>
       </section>
     </main>
+
+    <div id="patron-profile-modal" class="modal" hidden>
+      <div class="modal__backdrop" data-action="close"></div>
+      <div
+        class="modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="patron-profile-title"
+        aria-describedby="patron-profile-subtitle"
+      >
+        <div class="modal__header">
+          <div>
+            <p class="section-tag">Patron profile</p>
+            <h3 id="patron-profile-title">Add patron details</h3>
+          </div>
+          <p id="patron-profile-subtitle" class="muted-text">
+            First scan requires a name and email for notifications.
+          </p>
+        </div>
+        <form id="patron-profile-form" class="form-grid form-grid--stack">
+          <label class="field">
+            <span>Full name</span>
+            <input
+              id="patron-profile-name"
+              type="text"
+              autocomplete="name"
+              placeholder="Patron name"
+              required
+            />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input
+              id="patron-profile-email"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              placeholder="name@example.com"
+              required
+            />
+          </label>
+          <div class="form-actions">
+            <button
+              id="patron-profile-submit"
+              class="button button--primary"
+              type="submit"
+            >
+              Save profile
+            </button>
+            <button
+              id="patron-profile-cancel"
+              class="button button--ghost"
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+        <p id="patron-profile-feedback" class="feedback" hidden></p>
+      </div>
+    </div>
 
     <script type="module" src="./app.js"></script>
   </body>

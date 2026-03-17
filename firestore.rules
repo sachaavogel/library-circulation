@@ -21,6 +21,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         "barcode",
         "name",
+        "email",
         "createdAt",
         "lastSeenAt",
         "activeLoanCount",
@@ -142,7 +143,7 @@ service cloud.firestore {
 
     match /books/{bookId} {
       allow get: if isAdmin() || isGuest();
-      allow list: if isAdmin() || isGuest();
+      allow list: if isAdmin();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isGuest() && guestBookUpdateAllowed(bookId));
     }
