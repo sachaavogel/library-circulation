@@ -2,6 +2,7 @@ import {
   assertFirebaseReady,
   collection,
   db,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -164,7 +165,7 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
     },
     createdOnLoad: ensureResult.created,
     detailsLimited: !includeDetails,
-    needsName: !patronData.name,
+    needsName: ensureResult.created,
     activeLoans,
     activeHolds,
   };
@@ -218,4 +219,15 @@ export async function setGuestSessionPatron({ guestUid, patronBarcode }) {
     },
     { merge: true }
   );
+}
+
+export async function clearGuestSessionPatron({ guestUid }) {
+  assertFirebaseReady();
+
+  if (!String(guestUid || "").trim()) {
+    throw new Error("Guest session is required.");
+  }
+
+  const sessionRef = doc(db, "guestSessions", guestUid);
+  await deleteDoc(sessionRef);
 }

@@ -142,7 +142,7 @@ service cloud.firestore {
 
     match /books/{bookId} {
       allow get: if isAdmin() || isGuest();
-      allow list: if isAdmin();
+      allow list: if isAdmin() || isGuest();
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isGuest() && guestBookUpdateAllowed(bookId));
     }

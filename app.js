@@ -6,11 +6,22 @@ import {
 } from "./auth.js";
 import { checkoutOrPlaceHold, returnBook } from "./circulation.js";
 import { firebaseConfigReady } from "./firebase-init.js";
-import { addBook, searchInventory, watchInventory } from "./inventory.js";
+import {
+  addBook,
+  getInventoryStats,
+  removeBook,
+  searchInventory,
+  updateBook,
+  watchInventory,
+} from "./inventory.js";
 import { createCirculationView } from "./circulation-view.js";
 import { createInventoryView } from "./inventory-view.js";
 import { createLoginView } from "./login-view.js";
-import { loadPatronSession, updatePatronName } from "./patrons.js";
+import {
+  clearGuestSessionPatron,
+  loadPatronSession,
+  updatePatronName,
+} from "./patrons.js";
 import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
@@ -29,6 +40,7 @@ const state = {
   activeTab: TAB.inventory,
   activePatronBarcode: null,
   inventoryUnsubscribe: null,
+  circulationInventoryQuery: "",
 };
 
 const loginView = createLoginView({
@@ -39,6 +51,8 @@ const loginView = createLoginView({
 const inventoryView = createInventoryView({
   onAddBook: handleAddBook,
   onSearch: handleInventorySearch,
+  onUpdateBook: handleUpdateBook,
+  onRemoveBook: handleRemoveBook,
 });
 
 const circulationView = createCirculationView({
@@ -46,6 +60,8 @@ const circulationView = createCirculationView({
   onCheckout: handleCheckout,
   onReturn: handleReturn,
   onSaveName: handleSavePatronName,
+  onEndPatron: handleEndPatron,
+  onHomeSearch: handleCirculationInventorySearch,
 });
 
 inventoryTabButton.addEventListener("click", () => selectTab(TAB.inventory));
@@ -95,11 +111,6 @@ function syncAccessModeUi() {
   inventoryTabButton.hidden = !adminSession;
   circulationView.setReturnVisible(true);
 
-  if (!adminSession && state.inventoryUnsubscribe) {
-    state.inventoryUnsubscribe();
-    state.inventoryUnsubscribe = null;
-  }
-
   if (!adminSession) {
     inventorySection.hidden = true;
   }
@@ -129,6 +140,7 @@ function handleAuthChange(admin) {
   state.activePatronBarcode = null;
   circulationView.clearPatronSession();
   circulationView.clearBanner();
+  circulationView.setHomeVisible(true);
 
   if (admin) {
     loginView.hide();
@@ -146,8 +158,9 @@ function handleAuthChange(admin) {
       admin.access === ACCESS_MODE.guest ? "Exit guest" : "Sign out";
     syncAccessModeUi();
 
+    beginInventoryWatch();
+
     if (isAdminSession()) {
-      beginInventoryWatch();
       selectTab(state.activeTab);
     } else {
       inventoryView.setMessage("", "");
@@ -181,7 +194,7 @@ async function beginInventoryWatch() {
 
   state.inventoryUnsubscribe = watchInventory(
     () => {
-      inventoryView.renderBooks(searchInventory(inventoryView.getSearchQuery()));
+      refreshInventoryViews();
     },
     (error) => {
       inventoryView.setMessage("error", getErrorMessage(error, "Unable to load inventory."));
@@ -191,6 +204,19 @@ async function beginInventoryWatch() {
 
 function handleInventorySearch(query) {
   inventoryView.renderBooks(searchInventory(query));
+}
+
+function handleCirculationInventorySearch(query) {
+  state.circulationInventoryQuery = query;
+  refreshInventoryViews();
+}
+
+function refreshInventoryViews() {
+  const inventoryResults = searchInventory(inventoryView.getSearchQuery());
+  inventoryView.renderBooks(inventoryResults);
+
+  const circulationResults = searchInventory(state.circulationInventoryQuery);
+  circulationView.renderInventory(circulationResults, getInventoryStats());
 }
 
 async function handleLogin({ email, password }) {
@@ -227,11 +253,43 @@ async function handleAddBook(payload) {
     const book = await addBook(payload);
     inventoryView.setMessage("success", `Added "${book.title}" to inventory.`);
     inventoryView.clearForm();
-    inventoryView.renderBooks(searchInventory(inventoryView.getSearchQuery()));
+    refreshInventoryViews();
   } catch (error) {
     inventoryView.setMessage("error", getErrorMessage(error, "Unable to add the book."));
   } finally {
     inventoryView.setPending(false);
+  }
+}
+
+async function handleUpdateBook(payload) {
+  inventoryView.setEditPending(true);
+  inventoryView.setEditMessage("", "");
+
+  try {
+    const book = await updateBook(payload);
+    inventoryView.setEditMessage("success", `Updated "${book.title}".`);
+    inventoryView.clearEditForm();
+    refreshInventoryViews();
+  } catch (error) {
+    inventoryView.setEditMessage(
+      "error",
+      getErrorMessage(error, "Unable to update the book.")
+    );
+  } finally {
+    inventoryView.setEditPending(false);
+  }
+}
+
+async function handleRemoveBook(payload) {
+  inventoryView.setEditMessage("", "");
+
+  try {
+    await removeBook(payload);
+    inventoryView.setMessage("success", "Removed book from inventory.");
+    inventoryView.clearEditForm();
+    refreshInventoryViews();
+  } catch (error) {
+    inventoryView.setMessage("error", getErrorMessage(error, "Unable to remove the book."));
   }
 }
 
@@ -250,11 +308,12 @@ async function handleLoadPatron(rawPatronBarcode) {
     circulationView.focusCheckoutInput();
     circulationView.clearNameInput();
 
+    const patronName = session.patron.name || "patron";
     circulationView.showBanner(
       "success",
       session.createdOnLoad
-        ? `Created patron ${session.patron.barcode} and opened the session.`
-        : `Loaded patron ${session.patron.barcode}.`
+        ? `Created ${patronName} and opened the session.`
+        : `Loaded ${patronName}.`
     );
   } catch (error) {
     circulationView.showBanner("error", getErrorMessage(error, "Unable to load patron."));
@@ -310,6 +369,29 @@ async function refreshActivePatronSession() {
       getErrorMessage(error, "Unable to refresh the patron session.")
     );
   }
+}
+
+async function handleEndPatron() {
+  if (!state.activePatronBarcode) {
+    return;
+  }
+
+  if (state.session?.access === ACCESS_MODE.guest) {
+    try {
+      await clearGuestSessionPatron({ guestUid: state.session.uid });
+    } catch (error) {
+      circulationView.showBanner(
+        "error",
+        getErrorMessage(error, "Unable to clear the guest session.")
+      );
+      return;
+    }
+  }
+
+  state.activePatronBarcode = null;
+  circulationView.clearPatronSession();
+  circulationView.showBanner("info", "Patron session ended.");
+  circulationView.focusPatronInput();
 }
 
 async function handleCheckout(rawBookBarcode) {

@@ -221,6 +221,55 @@
                 </label>
               </div>
 
+              <form id="edit-book-form" class="panel panel--inset form-card form-card--edit" hidden>
+                <h3>Edit Book</h3>
+                <p class="form-card__copy">
+                  Update the barcode or title. Barcode edits are blocked if the book
+                  is checked out or has holds.
+                </p>
+                <div class="form-grid">
+                  <label class="field">
+                    <span>12-digit barcode</span>
+                    <input
+                      id="edit-book-barcode"
+                      type="text"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      placeholder="000123456789"
+                      maxlength="12"
+                      required
+                    />
+                  </label>
+                  <label class="field">
+                    <span>Title</span>
+                    <input
+                      id="edit-book-title"
+                      type="text"
+                      autocomplete="off"
+                      placeholder="Book title"
+                      required
+                    />
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button
+                    id="edit-book-submit"
+                    class="button button--primary"
+                    type="submit"
+                  >
+                    Save changes
+                  </button>
+                  <button
+                    id="edit-book-cancel"
+                    class="button button--ghost"
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p id="inventory-edit-feedback" class="feedback" hidden></p>
+              </form>
+
               <div class="table-wrap">
                 <table class="inventory-table">
                   <thead>
@@ -229,6 +278,7 @@
                       <th scope="col">Title</th>
                       <th scope="col">Status</th>
                       <th scope="col">Current patron</th>
+                      <th scope="col">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="inventory-body"></tbody>
@@ -283,11 +333,83 @@
                 </button>
               </form>
 
-              <section class="panel panel--inset patron-session" aria-live="polite">
+              <section
+                id="circulation-home"
+                class="panel panel--inset circulation-home"
+                aria-live="polite"
+              >
+                <div class="circulation-home__header">
+                  <div>
+                    <p class="section-tag">Circulation home</p>
+                    <h3>Library Snapshot</h3>
+                  </div>
+                  <label class="field field--search">
+                    <span class="sr-only">Search inventory</span>
+                    <input
+                      id="circulation-inventory-search"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Search inventory"
+                    />
+                  </label>
+                </div>
+
+                <div class="metric-row metric-row--four">
+                  <article class="metric-card">
+                    <span class="metric-label">Total books</span>
+                    <strong id="circulation-total-books">0</strong>
+                  </article>
+                  <article class="metric-card">
+                    <span class="metric-label">Available</span>
+                    <strong id="circulation-available-books">0</strong>
+                  </article>
+                  <article class="metric-card">
+                    <span class="metric-label">Checked out</span>
+                    <strong id="circulation-checkedout-books">0</strong>
+                  </article>
+                  <article class="metric-card">
+                    <span class="metric-label">On hold</span>
+                    <strong id="circulation-hold-books">0</strong>
+                  </article>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="inventory-table inventory-table--compact">
+                    <thead>
+                      <tr>
+                        <th scope="col">Barcode</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Current patron</th>
+                      </tr>
+                    </thead>
+                    <tbody id="circulation-inventory-body"></tbody>
+                  </table>
+                </div>
+
+                <div id="circulation-inventory-empty" class="empty-state">
+                  Inventory will appear here once books are added.
+                </div>
+              </section>
+
+              <section
+                id="patron-session"
+                class="panel panel--inset patron-session"
+                aria-live="polite"
+              >
                 <div class="patron-session__header">
                   <div>
                     <p class="section-tag">Active patron</p>
                     <h3 id="active-patron-label">No patron loaded</h3>
+                  </div>
+                  <div class="patron-session__actions">
+                    <button
+                      id="end-patron-session"
+                      class="button button--ghost"
+                      type="button"
+                    >
+                      End session
+                    </button>
                   </div>
                   <span id="active-patron-created" class="muted-text"></span>
                 </div>

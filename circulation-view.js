@@ -1,5 +1,6 @@
 import {
   formatTimestamp,
+  getBookStatusLabel,
   setFeedbackMessage,
 } from "./shared.js";
 
@@ -33,20 +34,56 @@ function renderList(root, items, emptyText) {
   items.forEach((item) => root.append(item));
 }
 
+function createStatusPill(status) {
+  const pill = document.createElement("span");
+  pill.className =
+    status === "checked_out"
+      ? "status-pill status-pill--checked-out"
+      : "status-pill status-pill--available";
+  pill.textContent = getBookStatusLabel(status);
+  return pill;
+}
+
+function appendCell(row, content) {
+  const cell = document.createElement("td");
+
+  if (content instanceof Node) {
+    cell.append(content);
+  } else {
+    cell.textContent = content;
+  }
+
+  row.append(cell);
+}
+
 export function createCirculationView({
   onLoadPatron,
   onCheckout,
   onReturn,
   onSaveName,
+  onEndPatron,
+  onHomeSearch,
 }) {
   const patronForm = document.getElementById("patron-form");
   const patronInput = document.getElementById("patron-barcode");
   const patronSubmit = document.getElementById("patron-submit");
 
+  const homePanel = document.getElementById("circulation-home");
+  const homeSearch = document.getElementById("circulation-inventory-search");
+  const homeTableBody = document.getElementById("circulation-inventory-body");
+  const homeEmpty = document.getElementById("circulation-inventory-empty");
+  const totalBooks = document.getElementById("circulation-total-books");
+  const availableBooks = document.getElementById("circulation-available-books");
+  const checkedOutBooks = document.getElementById("circulation-checkedout-books");
+  const holdBooks = document.getElementById("circulation-hold-books");
+
   const nameForm = document.getElementById("patron-name-form");
   const nameInput = document.getElementById("patron-name-input");
   const nameSubmit = document.getElementById("patron-name-submit");
   const nameHelp = document.getElementById("patron-name-help");
+
+  const endSessionButton = document.getElementById("end-patron-session");
+  const patronSessionPanel = document.getElementById("patron-session");
 
   const checkoutForm = document.getElementById("checkout-form");
   const checkoutInput = document.getElementById("checkout-book-barcode");
@@ -69,10 +106,22 @@ export function createCirculationView({
     await onLoadPatron(patronInput.value);
   });
 
+  if (homeSearch && onHomeSearch) {
+    homeSearch.addEventListener("input", () => {
+      onHomeSearch(homeSearch.value);
+    });
+  }
+
   nameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await onSaveName(nameInput.value);
   });
+
+  if (endSessionButton && onEndPatron) {
+    endSessionButton.addEventListener("click", async () => {
+      await onEndPatron();
+    });
+  }
 
   checkoutForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -167,9 +216,13 @@ export function createCirculationView({
       renderList(activeLoansList, [], "No patron session open.");
       renderList(activeHoldsList, [], "No patron session open.");
       this.setCheckoutEnabled(false);
+      this.setHomeVisible(true);
+      if (endSessionButton) {
+        endSessionButton.hidden = true;
+      }
     },
     renderPatronSession(session) {
-      patronLabel.textContent = session.patron.barcode;
+      patronLabel.textContent = session.patron.name || "Name needed";
       patronCreated.textContent = session.createdOnLoad
         ? "Created new patron record on this scan."
         : `Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
@@ -205,6 +258,60 @@ export function createCirculationView({
       );
 
       this.setCheckoutEnabled(true);
+      this.setHomeVisible(false);
+      if (endSessionButton) {
+        endSessionButton.hidden = false;
+      }
+    },
+    setHomeVisible(isVisible) {
+      if (homePanel) {
+        homePanel.hidden = !isVisible;
+      }
+      if (patronSessionPanel) {
+        patronSessionPanel.hidden = isVisible;
+      }
+    },
+    renderInventory(books, stats) {
+      if (totalBooks) {
+        totalBooks.textContent = String(stats.total ?? 0);
+      }
+      if (availableBooks) {
+        availableBooks.textContent = String(stats.available ?? 0);
+      }
+      if (checkedOutBooks) {
+        checkedOutBooks.textContent = String(stats.checkedOut ?? 0);
+      }
+      if (holdBooks) {
+        holdBooks.textContent = String(stats.onHold ?? 0);
+      }
+
+      if (!homeTableBody || !homeEmpty) {
+        return;
+      }
+
+      homeTableBody.replaceChildren();
+
+      if (!books.length) {
+        homeEmpty.textContent = homeSearch?.value?.trim()
+          ? "No books match the current search."
+          : "Inventory will appear here once books are added.";
+        homeEmpty.hidden = false;
+        return;
+      }
+
+      homeEmpty.hidden = true;
+
+      books.forEach((book) => {
+        const row = document.createElement("tr");
+        appendCell(row, book.barcode);
+        appendCell(row, book.title);
+        appendCell(row, createStatusPill(book.status));
+        appendCell(row, book.currentPatronBarcode || "—");
+        homeTableBody.append(row);
+      });
+    },
+    getHomeSearchQuery() {
+      return homeSearch?.value ?? "";
     },
   };
 }
