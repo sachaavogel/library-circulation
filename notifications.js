@@ -33,14 +33,14 @@ function buildReceiptListText(items, emptyLabel) {
   return items
     .map((item) => {
       const title = item.bookTitle || "Unknown title";
-      return `- ${title}`;
+      return title;
     })
     .join("\n");
 }
 
 function buildReceiptListHtml(items, emptyLabel) {
   if (!items.length) {
-    return `<li>${escapeHtml(emptyLabel)}</li>`;
+    return `<li style="color:#64748b;font-style:italic;">${escapeHtml(emptyLabel)}</li>`;
   }
 
   return items
@@ -107,6 +107,8 @@ export async function sendPatronReceipt({ patron, loans, holds }) {
     message: text,
     loans_html: loansHtml,
     holds_html: holdsHtml,
+    loansHtml: loansHtml,
+    holdsHtml: holdsHtml,
     loans_text: loansText,
     holds_text: holdsText,
     loansText,
