@@ -1,35 +1,54 @@
-function buildReceiptText({ patron, loans, holds }) {
-  const patronName = patron.name || "patron";
-  const patronLine = `${patronName} (${patron.barcode})`;
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
+function buildReceiptMessage({ loans, holds }) {
   const loanLines = loans.length
     ? loans.map((loan, index) => {
         const title = loan.bookTitle || "Unknown title";
-        return `${index + 1}. ${title} — ${loan.bookBarcode}`;
+        return `${index + 1}. ${title}`;
       })
     : ["No active loans."];
 
   const holdLines = holds.length
     ? holds.map((hold, index) => {
         const title = hold.bookTitle || "Unknown title";
-        return `${index + 1}. ${title} — ${hold.bookBarcode}`;
+        return `${index + 1}. ${title}`;
       })
     : ["No active holds."];
 
-  return [
-    `Hello ${patronName},`,
-    "",
-    `Patron: ${patronLine}`,
-    "",
-    "Active loans:",
-    ...loanLines,
-    "",
-    "Active holds:",
-    ...holdLines,
-    "",
-    "Thank you,",
-    "Grand Oak Athenaeum",
-  ].join("\n");
+  return ["Active loans:", ...loanLines, "", "Active holds:", ...holdLines].join("\n");
+}
+
+function buildReceiptListText(items, emptyLabel) {
+  if (!items.length) {
+    return emptyLabel;
+  }
+
+  return items
+    .map((item) => {
+      const title = item.bookTitle || "Unknown title";
+      return `- ${title}`;
+    })
+    .join("\n");
+}
+
+function buildReceiptListHtml(items, emptyLabel) {
+  if (!items.length) {
+    return `<li>${escapeHtml(emptyLabel)}</li>`;
+  }
+
+  return items
+    .map((item) => {
+      const title = item.bookTitle || "Unknown title";
+      return `<li>${escapeHtml(title)}</li>`;
+    })
+    .join("");
 }
 
 function getEmailJsConfig() {
@@ -75,14 +94,27 @@ export async function sendPatronReceipt({ patron, loans, holds }) {
   }
 
   const subject = "Your Grand Oak Athenaeum loans and holds";
-  const text = buildReceiptText({ patron, loans, holds });
+  const text = buildReceiptMessage({ loans, holds });
+  const loansHtml = buildReceiptListHtml(loans, "No active loans.");
+  const holdsHtml = buildReceiptListHtml(holds, "No active holds.");
+  const loansText = buildReceiptListText(loans, "No active loans.");
+  const holdsText = buildReceiptListText(holds, "No active holds.");
 
   const templateParams = {
     to_name: patron.name || "Patron",
     to_email: email,
     subject,
     message: text,
-    patron_barcode: patron.barcode || "",
+    loans_html: loansHtml,
+    holds_html: holdsHtml,
+    loans_text: loansText,
+    holds_text: holdsText,
+    loansText,
+    holdsText,
+    loan_text: loansText,
+    hold_text: holdsText,
+    loans: loansText,
+    holds: holdsText,
   };
 
   await window.emailjs.send(serviceId, templateId, templateParams);
