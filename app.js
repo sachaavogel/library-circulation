@@ -23,7 +23,7 @@ import {
   loadPatronSession,
   updatePatronProfile,
 } from "./patrons.js";
-import { queuePatronReceipt } from "./notifications.js";
+import { sendPatronReceipt } from "./notifications.js";
 import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
@@ -534,11 +534,10 @@ async function handleSendPatronReceipt() {
   circulationView.clearBanner();
 
   try {
-    await queuePatronReceipt({
+    await sendPatronReceipt({
       patron: session.patron,
       loans: session.activeLoans,
       holds: session.activeHolds,
-      requestedByUid: state.session?.uid,
     });
     circulationView.showBanner("success", "Email sent.");
   } catch (error) {

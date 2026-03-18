@@ -1,12 +1,3 @@
-import {
-  assertFirebaseReady,
-  collection,
-  db,
-  doc,
-  serverTimestamp,
-  setDoc,
-} from "./firebase-init.js";
-
 function buildReceiptText({ patron, loans, holds }) {
   const patronName = patron.name || "patron";
   const patronLine = `${patronName} (${patron.barcode})`;
@@ -41,40 +32,58 @@ function buildReceiptText({ patron, loans, holds }) {
   ].join("\n");
 }
 
-export async function queuePatronReceipt({ patron, loans, holds, requestedByUid }) {
-  assertFirebaseReady();
+function getEmailJsConfig() {
+  const config = window.LIBRARY_CATALOG_EMAILJS_CONFIG || {};
+  const publicKey = String(config.publicKey || "").trim();
+  const serviceId = String(config.serviceId || "").trim();
+  const templateId = String(config.templateId || "").trim();
 
+  if (!publicKey || publicKey.startsWith("YOUR_")) {
+    throw new Error("EmailJS public key is missing. Update index.html.");
+  }
+  if (!serviceId || serviceId.startsWith("YOUR_")) {
+    throw new Error("EmailJS service ID is missing. Update index.html.");
+  }
+  if (!templateId || templateId.startsWith("YOUR_")) {
+    throw new Error("EmailJS template ID is missing. Update index.html.");
+  }
+
+  if (!window.emailjs || typeof window.emailjs.init !== "function") {
+    throw new Error("EmailJS SDK failed to load.");
+  }
+
+  return {
+    publicKey,
+    serviceId,
+    templateId,
+  };
+}
+
+let emailJsReady = false;
+
+export async function sendPatronReceipt({ patron, loans, holds }) {
   const email = String(patron?.email || "").trim();
   if (!email) {
     throw new Error("Patron email is required to send a receipt.");
   }
 
-  const requester = String(requestedByUid || "").trim();
-  if (!requester) {
-    throw new Error("Active session is required to send a receipt.");
-  }
+  const { publicKey, serviceId, templateId } = getEmailJsConfig();
 
-  const patronBarcode = String(patron?.barcode || "").trim();
-  if (!patronBarcode) {
-    throw new Error("Patron barcode is missing.");
+  if (!emailJsReady) {
+    window.emailjs.init({ publicKey });
+    emailJsReady = true;
   }
 
   const subject = "Your Grand Oak Athenaeum loans and holds";
   const text = buildReceiptText({ patron, loans, holds });
 
-  const mailRef = doc(collection(db, "mail"));
-  await setDoc(mailRef, {
-    to: email,
-    message: {
-      subject,
-      text,
-    },
-    createdAt: serverTimestamp(),
-    requestedByUid: requester,
-    patronBarcode,
-  });
-
-  return {
-    id: mailRef.id,
+  const templateParams = {
+    to_name: patron.name || "Patron",
+    to_email: email,
+    subject,
+    message: text,
+    patron_barcode: patron.barcode || "",
   };
+
+  await window.emailjs.send(serviceId, templateId, templateParams);
 }
