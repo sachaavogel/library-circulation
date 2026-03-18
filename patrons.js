@@ -181,6 +181,7 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
   }
 
   const patronData = patronSnapshot.data() || {};
+  const needsProfile = !patronData.name || !patronData.email;
 
   return {
     patron: {
@@ -189,7 +190,7 @@ export async function loadPatronSession(rawPatronBarcode, options = {}) {
     },
     createdOnLoad: ensureResult.created,
     detailsLimited: !includeDetails,
-    needsProfile: ensureResult.created,
+    needsProfile,
     activeLoans,
     activeHolds,
     recentLoans: includeDetails ? recentLoans : [],

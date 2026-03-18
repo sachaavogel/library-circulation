@@ -136,7 +136,7 @@ export function getErrorMessage(error, fallback = "Something went wrong.") {
       "auth/invalid-email": "Enter a valid email address.",
       "auth/invalid-credential": "Invalid email or password.",
       "auth/operation-not-allowed":
-        "Enable Anonymous sign-in in Firebase Authentication to use guest mode.",
+        "Enable Anonymous sign-in in Firebase Authentication to use patron mode.",
       "auth/user-disabled": "This Firebase Auth account has been disabled.",
       "permission-denied":
         "This session is not allowed to perform that action.",

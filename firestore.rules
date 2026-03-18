@@ -32,6 +32,8 @@ service cloud.firestore {
 
     function guestPatronWriteAllowed(patronId) {
       return patronKeysAreValid() &&
+        guestSessionExists() &&
+        guestSessionPatron() == patronId &&
         request.resource.data.barcode == patronId;
     }
 
@@ -126,6 +128,29 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/guestSessions/$(request.auth.uid)).data.patronBarcode;
     }
 
+    function mailMessageValid() {
+      return request.resource.data.message is map &&
+        request.resource.data.message.keys().hasOnly(["subject", "text"]) &&
+        request.resource.data.message.subject is string &&
+        request.resource.data.message.text is string;
+    }
+
+    function mailRequestValid() {
+      return request.resource.data.keys().hasOnly(["to", "message", "createdAt", "requestedByUid", "patronBarcode"]) &&
+        request.resource.data.to is string &&
+        mailMessageValid();
+    }
+
+    function guestMailAllowed() {
+      return isGuest() &&
+        guestSessionExists() &&
+        mailRequestValid() &&
+        request.resource.data.to ==
+          get(/databases/$(database)/documents/patrons/$(guestSessionPatron())).data.email &&
+        request.resource.data.patronBarcode == guestSessionPatron() &&
+        request.resource.data.requestedByUid == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow read, write: if isAdmin();
     }
@@ -166,6 +191,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
       allow create: if isAdmin() || (isGuest() && guestHoldCreateAllowed());
       allow update: if isAdmin() || (isGuest() && guestHoldUpdateAllowed());
+    }
+
+    match /mail/{mailId} {
+      allow create: if isAdmin() || guestMailAllowed();
+      allow read, update, delete: if isAdmin();
     }
 
     match /{document=**} {

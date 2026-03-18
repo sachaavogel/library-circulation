@@ -23,6 +23,7 @@ import {
   loadPatronSession,
   updatePatronProfile,
 } from "./patrons.js";
+import { queuePatronReceipt } from "./notifications.js";
 import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
@@ -40,6 +41,7 @@ const state = {
   session: null,
   activeTab: TAB.inventory,
   activePatronBarcode: null,
+  activeSession: null,
   inventoryUnsubscribe: null,
   circulationInventoryQuery: "",
   patronNameCache: new Map(),
@@ -63,6 +65,7 @@ const circulationView = createCirculationView({
   onCheckout: handleCheckout,
   onReturn: handleReturn,
   onSaveProfile: handleSavePatronProfile,
+  onSendReceipt: handleSendPatronReceipt,
   onEndPatron: handleEndPatron,
   onHomeSearch: handleCirculationInventorySearch,
 });
@@ -147,6 +150,7 @@ function handleAuthChange(admin) {
   state.session = admin;
   state.activePatronBarcode = null;
   state.profileRequired = false;
+  state.activeSession = null;
   state.patronNameCache = new Map();
   circulationView.clearPatronSession();
   circulationView.clearBanner();
@@ -214,7 +218,11 @@ async function beginInventoryWatch() {
 }
 
 function handleInventorySearch(query) {
-  inventoryView.renderBooks(searchInventory(query), state.patronNameCache);
+  const results = searchInventory(query);
+  inventoryView.renderBooks(results, state.patronNameCache);
+  if (isAdminSession()) {
+    hydratePatronNames(results);
+  }
 }
 
 function handleCirculationInventorySearch(query) {
@@ -262,6 +270,13 @@ async function hydratePatronNames(books) {
   } catch {
     // Ignore patron-name hydration errors to keep inventory responsive.
   }
+}
+
+function applyActiveSession(session) {
+  state.activeSession = session;
+  state.activePatronBarcode = session.patron.barcode;
+  state.profileRequired = session.needsProfile;
+  circulationView.renderPatronSession(session);
 }
 
 async function handleLogin({ email, password }) {
@@ -347,9 +362,7 @@ async function handleLoadPatron(rawPatronBarcode) {
       includeDetails: true,
       guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
-    state.activePatronBarcode = session.patron.barcode;
-    state.profileRequired = session.needsProfile;
-    circulationView.renderPatronSession(session);
+    applyActiveSession(session);
     circulationView.clearPatronInput();
     circulationView.focusCheckoutInput();
     circulationView.clearNameInput();
@@ -393,7 +406,7 @@ async function handleSavePatronProfile({ name, email }) {
     });
 
     state.profileRequired = false;
-    circulationView.renderPatronSession(session);
+    applyActiveSession(session);
     circulationView.clearNameInput();
     circulationView.closeProfileModal();
     circulationView.showBanner("success", "Saved patron profile.");
@@ -417,14 +430,16 @@ async function refreshActivePatronSession() {
       includeDetails: true,
       guestUid: state.session?.access === ACCESS_MODE.guest ? state.session.uid : null,
     });
-    state.profileRequired = session.needsProfile;
-    circulationView.renderPatronSession(session);
+    applyActiveSession(session);
+    return session;
   } catch (error) {
     circulationView.showBanner(
       "error",
       getErrorMessage(error, "Unable to refresh the patron session.")
     );
   }
+
+  return null;
 }
 
 async function handleEndPatron() {
@@ -438,7 +453,7 @@ async function handleEndPatron() {
     } catch (error) {
       circulationView.showBanner(
         "error",
-        getErrorMessage(error, "Unable to clear the guest session.")
+        getErrorMessage(error, "Unable to clear the patron session.")
       );
       return;
     }
@@ -446,6 +461,7 @@ async function handleEndPatron() {
 
   state.activePatronBarcode = null;
   state.profileRequired = false;
+  state.activeSession = null;
   circulationView.clearPatronSession();
   circulationView.showBanner("info", "Patron session ended.");
   circulationView.focusPatronInput();
@@ -489,6 +505,49 @@ async function handleCheckout(rawBookBarcode) {
     circulationView.setCheckoutEnabled(
       Boolean(state.session && state.activePatronBarcode && !state.profileRequired)
     );
+  }
+}
+
+async function handleSendPatronReceipt() {
+  if (!state.activePatronBarcode) {
+    circulationView.showBanner("error", "Load a patron session before emailing.");
+    return;
+  }
+
+  const session = (await refreshActivePatronSession()) || state.activeSession;
+
+  if (!session) {
+    return;
+  }
+
+  if (!session.patron.email) {
+    circulationView.showBanner("error", "Add an email address before sending.");
+    circulationView.openProfileModal({
+      required: false,
+      name: session.patron.name,
+      email: session.patron.email,
+    });
+    return;
+  }
+
+  circulationView.setReceiptPending(true);
+  circulationView.clearBanner();
+
+  try {
+    await queuePatronReceipt({
+      patron: session.patron,
+      loans: session.activeLoans,
+      holds: session.activeHolds,
+      requestedByUid: state.session?.uid,
+    });
+    circulationView.showBanner("success", "Email sent.");
+  } catch (error) {
+    circulationView.showBanner(
+      "error",
+      getErrorMessage(error, "Unable to send the email.")
+    );
+  } finally {
+    circulationView.setReceiptPending(false);
   }
 }
 

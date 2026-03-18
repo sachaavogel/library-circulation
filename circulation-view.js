@@ -61,6 +61,7 @@ export function createCirculationView({
   onCheckout,
   onReturn,
   onSaveProfile,
+  onSendReceipt,
   onEndPatron,
   onHomeSearch,
 }) {
@@ -79,6 +80,7 @@ export function createCirculationView({
 
   const endSessionButton = document.getElementById("end-patron-session");
   const editProfileButton = document.getElementById("edit-patron-profile");
+  const emailInfoButton = document.getElementById("email-patron-info");
   const patronSessionPanel = document.getElementById("patron-session");
 
   const checkoutForm = document.getElementById("checkout-form");
@@ -149,6 +151,12 @@ export function createCirculationView({
     });
   }
 
+  if (emailInfoButton && onSendReceipt) {
+    emailInfoButton.addEventListener("click", async () => {
+      await onSendReceipt();
+    });
+  }
+
   if (profileCancel) {
     profileCancel.addEventListener("click", () => {
       if (!profileRequired) {
@@ -216,6 +224,19 @@ export function createCirculationView({
         profileCancel.disabled = isPending;
       }
     },
+    setReceiptPending(isPending) {
+      if (!emailInfoButton) {
+        return;
+      }
+      emailInfoButton.disabled = isPending;
+      emailInfoButton.textContent = isPending ? "Sending..." : "Email info";
+    },
+    setReceiptEnabled(isEnabled) {
+      if (!emailInfoButton) {
+        return;
+      }
+      emailInfoButton.disabled = !isEnabled;
+    },
     setCheckoutPending(isPending) {
       checkoutInput.disabled = isPending;
       checkoutSubmit.disabled = isPending;
@@ -277,6 +298,11 @@ export function createCirculationView({
       closeProfileModal();
       if (editProfileButton) {
         editProfileButton.hidden = true;
+      }
+      if (emailInfoButton) {
+        emailInfoButton.hidden = true;
+        emailInfoButton.textContent = "Email info";
+        emailInfoButton.disabled = true;
       }
       renderList(activeLoansList, [], "No patron session open.");
       renderList(activeHoldsList, [], "No patron session open.");
@@ -355,6 +381,10 @@ export function createCirculationView({
       }
       if (editProfileButton) {
         editProfileButton.hidden = profileRequired;
+      }
+      if (emailInfoButton) {
+        emailInfoButton.hidden = false;
+        emailInfoButton.disabled = profileRequired || !session.patron.email;
       }
     },
     setHomeVisible(isVisible) {

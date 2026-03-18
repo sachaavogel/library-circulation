@@ -742,6 +742,10 @@ h4 {
   gap: 1rem;
 }
 
+.modal__dialog .form-actions {
+  justify-content: flex-end;
+}
+
 .modal__header {
   display: grid;
   gap: 0.4rem;
