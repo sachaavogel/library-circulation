@@ -25,27 +25,69 @@ function buildReceiptMessage({ loans, holds }) {
   return ["Active loans:", ...loanLines, "", "Active holds:", ...holdLines].join("\n");
 }
 
-function buildReceiptListText(items, emptyLabel) {
+function normalizeTitleMatch(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function prioritizeItems(items, highlightTitle) {
+  if (!highlightTitle) {
+    return { items, highlightIndex: -1 };
+  }
+
+  const matchValue = normalizeTitleMatch(highlightTitle);
+  const highlightIndex = items.findIndex(
+    (item) => normalizeTitleMatch(item.bookTitle) === matchValue
+  );
+
+  if (highlightIndex <= 0) {
+    return { items, highlightIndex };
+  }
+
+  return {
+    items: [
+      items[highlightIndex],
+      ...items.slice(0, highlightIndex),
+      ...items.slice(highlightIndex + 1),
+    ],
+    highlightIndex: 0,
+  };
+}
+
+function buildReceiptListText(items, emptyLabel, options = {}) {
   if (!items.length) {
     return emptyLabel;
   }
 
-  return items
-    .map((item) => {
+  const { highlightTitle, highlightLabel = "Ready now:" } = options;
+  const { items: sortedItems, highlightIndex } = prioritizeItems(items, highlightTitle);
+
+  return sortedItems
+    .map((item, index) => {
       const title = item.bookTitle || "Unknown title";
+      if (highlightTitle && index === highlightIndex) {
+        return `${highlightLabel} ${title}`;
+      }
       return title;
     })
     .join("\n");
 }
 
-function buildReceiptListHtml(items, emptyLabel) {
+function buildReceiptListHtml(items, emptyLabel, options = {}) {
   if (!items.length) {
     return `<li style="color:#64748b;font-style:italic;">${escapeHtml(emptyLabel)}</li>`;
   }
 
-  return items
-    .map((item) => {
+  const { highlightTitle, highlightLabel = "Ready now:" } = options;
+  const { items: sortedItems, highlightIndex } = prioritizeItems(items, highlightTitle);
+
+  return sortedItems
+    .map((item, index) => {
       const title = item.bookTitle || "Unknown title";
+      if (highlightTitle && index === highlightIndex) {
+        return `<li><span style="display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#1d4ed8;color:#ffffff;font-size:11px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;">${escapeHtml(
+          highlightLabel
+        )}</span>${escapeHtml(title)}</li>`;
+      }
       return `<li>${escapeHtml(title)}</li>`;
     })
     .join("");
@@ -80,7 +122,14 @@ function getEmailJsConfig() {
 
 let emailJsReady = false;
 
-export async function sendPatronReceipt({ patron, loans, holds, subject }) {
+export async function sendPatronReceipt({
+  patron,
+  loans,
+  holds,
+  subject,
+  headline,
+  highlightHoldTitle,
+} = {}) {
   const email = String(patron?.email || "").trim();
   if (!email) {
     throw new Error("Patron email is required to send a receipt.");
@@ -95,16 +144,24 @@ export async function sendPatronReceipt({ patron, loans, holds, subject }) {
 
   const finalSubject =
     String(subject || "").trim() || "Your Grand Oak Athenaeum loans and holds";
+  const finalHeadline =
+    String(headline || "").trim() || "Here is your current circulation summary.";
   const text = buildReceiptMessage({ loans, holds });
   const loansHtml = buildReceiptListHtml(loans, "No active loans.");
-  const holdsHtml = buildReceiptListHtml(holds, "No active holds.");
+  const holdsHtml = buildReceiptListHtml(holds, "No active holds.", {
+    highlightTitle: highlightHoldTitle,
+  });
   const loansText = buildReceiptListText(loans, "No active loans.");
-  const holdsText = buildReceiptListText(holds, "No active holds.");
+  const holdsText = buildReceiptListText(holds, "No active holds.", {
+    highlightTitle: highlightHoldTitle,
+  });
 
   const templateParams = {
     to_name: patron.name || "Patron",
     to_email: email,
     subject: finalSubject,
+    headline: finalHeadline,
+    headline_text: finalHeadline,
     message: text,
     loans_html: loansHtml,
     holds_html: holdsHtml,

@@ -588,6 +588,8 @@ async function handleReturn(rawBookBarcode) {
             loans: autoSession.activeLoans,
             holds: autoSession.activeHolds,
             subject: `Your hold is ready: ${bookTitle}`,
+            headline: `Your hold is ready. "${bookTitle}" has been checked out to you.`,
+            highlightHoldTitle: bookTitle,
           });
 
           circulationView.showBanner(
