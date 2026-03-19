@@ -80,7 +80,7 @@ function getEmailJsConfig() {
 
 let emailJsReady = false;
 
-export async function sendPatronReceipt({ patron, loans, holds }) {
+export async function sendPatronReceipt({ patron, loans, holds, subject }) {
   const email = String(patron?.email || "").trim();
   if (!email) {
     throw new Error("Patron email is required to send a receipt.");
@@ -93,7 +93,8 @@ export async function sendPatronReceipt({ patron, loans, holds }) {
     emailJsReady = true;
   }
 
-  const subject = "Your Grand Oak Athenaeum loans and holds";
+  const finalSubject =
+    String(subject || "").trim() || "Your Grand Oak Athenaeum loans and holds";
   const text = buildReceiptMessage({ loans, holds });
   const loansHtml = buildReceiptListHtml(loans, "No active loans.");
   const holdsHtml = buildReceiptListHtml(holds, "No active holds.");
@@ -103,7 +104,7 @@ export async function sendPatronReceipt({ patron, loans, holds }) {
   const templateParams = {
     to_name: patron.name || "Patron",
     to_email: email,
-    subject,
+    subject: finalSubject,
     message: text,
     loans_html: loansHtml,
     holds_html: holdsHtml,

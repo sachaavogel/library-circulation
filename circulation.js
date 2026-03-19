@@ -342,6 +342,10 @@ export async function returnBook({
       action: "return_auto_checkout",
       status: "success",
       message: `Returned "${bookData.title}" from patron ${currentPatronBarcode} and auto-checked it out to patron ${nextHold.patronBarcode}.`,
+      autoCheckout: {
+        patronBarcode: nextHold.patronBarcode,
+        bookTitle: bookData.title || "",
+      },
     };
   });
 }

@@ -568,6 +568,37 @@ async function handleReturn(rawBookBarcode) {
     circulationView.showBanner(result.status, result.message);
     circulationView.clearReturnInput();
     await refreshActivePatronSession();
+
+    if (
+      result.action === "return_auto_checkout" &&
+      isAdminSession() &&
+      result.autoCheckout?.patronBarcode
+    ) {
+      try {
+        const autoSession = await loadPatronSession(result.autoCheckout.patronBarcode, {
+          includeDetails: true,
+        });
+
+        if (autoSession?.patron?.email) {
+          const patronName = autoSession.patron.name || "patron";
+          const bookTitle = result.autoCheckout.bookTitle || "your hold";
+
+          await sendPatronReceipt({
+            patron: autoSession.patron,
+            loans: autoSession.activeLoans,
+            holds: autoSession.activeHolds,
+            subject: `Your hold is ready: ${bookTitle}`,
+          });
+
+          circulationView.showBanner(
+            "success",
+            `${result.message} Email sent to ${patronName}.`
+          );
+        }
+      } catch {
+        // Keep the return banner; hold-ready email failures should not block returns.
+      }
+    }
   } catch (error) {
     circulationView.showBanner("error", getErrorMessage(error, "Unable to process return."));
   } finally {
