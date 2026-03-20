@@ -5,7 +5,19 @@ import {
   watchLibrarySession,
 } from "./auth.js";
 import { checkoutOrPlaceHold, returnBook } from "./circulation.js";
-import { firebaseConfigReady } from "./firebase-init.js";
+import {
+  collection,
+  db,
+  doc,
+  firebaseConfigReady,
+  getDocs,
+  increment,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "./firebase-init.js";
 import {
   addBook,
   getInventoryStats,
@@ -24,7 +36,18 @@ import {
   updatePatronProfile,
 } from "./patrons.js";
 import { sendPatronReceipt } from "./notifications.js";
-import { ACCESS_MODE, TAB, getErrorMessage } from "./shared.js";
+import {
+  ACCESS_MODE,
+  DUE_WARNING_DAYS,
+  FINE_CENTS,
+  GRACE_DAYS,
+  LOAN_STATUS,
+  TAB,
+  diffInDays,
+  formatDate,
+  getErrorMessage,
+  getLoanDueDate,
+} from "./shared.js";
 
 const sessionLabel = document.getElementById("session-label");
 const sessionDetail = document.getElementById("session-detail");
@@ -47,6 +70,9 @@ const state = {
   patronNameCache: new Map(),
   profileRequired: false,
 };
+
+const DUE_PROCESSING_STORAGE_KEY = "library_due_processing_date";
+let dueProcessingTimer = null;
 
 const loginView = createLoginView({
   onSubmit: handleLogin,
@@ -172,6 +198,7 @@ function handleAuthChange(admin) {
       admin.access === ACCESS_MODE.guest ? "Exit patron" : "Sign out";
     circulationView.setGuestMode(admin.access === ACCESS_MODE.guest);
     syncAccessModeUi();
+    scheduleDueProcessing();
 
     if (isAdminSession()) {
       beginInventoryWatch();
@@ -195,10 +222,167 @@ function handleAuthChange(admin) {
   inventoryView.setMessage("", "");
   circulationView.setReturnVisible(true);
   inventoryTabButton.hidden = false;
+  stopDueProcessing();
 
   if (state.inventoryUnsubscribe) {
     state.inventoryUnsubscribe();
     state.inventoryUnsubscribe = null;
+  }
+}
+
+function scheduleDueProcessing() {
+  stopDueProcessing();
+
+  if (!isAdminSession()) {
+    return;
+  }
+
+  runDueProcessing();
+  dueProcessingTimer = window.setInterval(runDueProcessing, 4 * 60 * 60 * 1000);
+}
+
+function stopDueProcessing() {
+  if (dueProcessingTimer) {
+    window.clearInterval(dueProcessingTimer);
+    dueProcessingTimer = null;
+  }
+}
+
+async function runDueProcessing() {
+  if (!isAdminSession()) {
+    return;
+  }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(DUE_PROCESSING_STORAGE_KEY) === todayKey) {
+    return;
+  }
+
+  try {
+    await processDueActions();
+    localStorage.setItem(DUE_PROCESSING_STORAGE_KEY, todayKey);
+  } catch (error) {
+    console.warn("Due processing failed.", error);
+  }
+}
+
+async function processDueActions() {
+  const loansQuery = query(
+    collection(db, "loans"),
+    where("status", "==", LOAN_STATUS.active),
+    orderBy("checkedOutAt", "desc")
+  );
+  const snapshot = await getDocs(loansQuery);
+  const now = new Date();
+
+  const dueSoonByPatron = new Map();
+  const dueTodayByPatron = new Map();
+  const updates = [];
+
+  snapshot.forEach((docSnap) => {
+    const loan = docSnap.data();
+    const dueDate = getLoanDueDate(loan, now);
+    const daysUntilDue = diffInDays(dueDate, now);
+    const daysPastDue = -daysUntilDue;
+
+    if (!loan.dueAt && loan.checkedOutAt) {
+      updates.push(updateDoc(docSnap.ref, { dueAt: dueDate }));
+      if (loan.bookBarcode) {
+        updates.push(
+          updateDoc(doc(db, "books", loan.bookBarcode), { currentDueAt: dueDate })
+        );
+      }
+    }
+
+    if (daysUntilDue === DUE_WARNING_DAYS && !loan.notice3SentAt) {
+      queueDueNotice(dueSoonByPatron, docSnap.ref, loan);
+    }
+
+    if (daysUntilDue === 0 && !loan.noticeDaySentAt) {
+      queueDueNotice(dueTodayByPatron, docSnap.ref, loan);
+    }
+
+    if (daysPastDue >= GRACE_DAYS && !loan.fineAppliedAt) {
+      updates.push(
+        updateDoc(docSnap.ref, {
+          fineCents: FINE_CENTS,
+          fineAppliedAt: serverTimestamp(),
+        })
+      );
+      if (loan.patronBarcode) {
+        updates.push(
+          updateDoc(doc(db, "patrons", loan.patronBarcode), {
+            fineCents: increment(FINE_CENTS),
+          })
+        );
+      }
+    }
+  });
+
+  if (updates.length) {
+    await Promise.all(updates);
+  }
+
+  await sendDueNoticeEmails(dueTodayByPatron, {
+    headline: "Your items are due today.",
+    subject: "Your library items are due today",
+    highlightLabel: "Due today:",
+    noticeField: "noticeDaySentAt",
+  });
+
+  await sendDueNoticeEmails(dueSoonByPatron, {
+    headline: `Your items are due in ${DUE_WARNING_DAYS} days.`,
+    subject: `Your library items are due in ${DUE_WARNING_DAYS} days`,
+    highlightLabel: "Due soon:",
+    noticeField: "notice3SentAt",
+  });
+}
+
+function queueDueNotice(map, loanRef, loan) {
+  if (!loan?.patronBarcode) {
+    return;
+  }
+
+  const entries = map.get(loan.patronBarcode) || [];
+  entries.push({ ref: loanRef, loan });
+  map.set(loan.patronBarcode, entries);
+}
+
+async function sendDueNoticeEmails(map, options) {
+  const { headline, subject, highlightLabel, noticeField } = options;
+
+  for (const [patronBarcode, entries] of map.entries()) {
+    try {
+      const session = await loadPatronSession(patronBarcode, { includeDetails: true });
+      if (!session?.patron?.email) {
+        continue;
+      }
+
+      const highlightEntry = entries[0]?.loan;
+      const highlightLoan =
+        highlightEntry &&
+        session.activeLoans.find(
+          (loan) => loan.bookBarcode === highlightEntry.bookBarcode
+        );
+
+      await sendPatronReceipt({
+        patron: session.patron,
+        loans: session.activeLoans,
+        holds: session.activeHolds,
+        subject,
+        headline,
+        highlightLoanTitle: highlightLoan?.bookTitle,
+        highlightLoanLabel: highlightLabel,
+      });
+
+      await Promise.all(
+        entries.map((entry) =>
+          updateDoc(entry.ref, { [noticeField]: serverTimestamp() })
+        )
+      );
+    } catch (error) {
+      console.warn("Unable to send due notice email.", error);
+    }
   }
 }
 

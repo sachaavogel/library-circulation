@@ -10,6 +10,8 @@ import {
   BOOK_STATUS,
   HOLD_STATUS,
   LOAN_STATUS,
+  LOAN_TERM_DAYS,
+  addDays,
   makeHoldId,
   makeLoanId,
   requireBarcode,
@@ -72,6 +74,7 @@ export async function checkoutOrPlaceHold({
 
   const patronBarcode = requireBarcode(rawPatronBarcode, "Patron barcode");
   const bookBarcode = requireBarcode(rawBookBarcode, "Book barcode");
+  const dueAt = addDays(new Date(), LOAN_TERM_DAYS);
 
   if (!String(actorUid ?? "").trim()) {
     throw new Error("A signed-in session is required for circulation actions.");
@@ -102,7 +105,12 @@ export async function checkoutOrPlaceHold({
         patronBarcode,
         status: LOAN_STATUS.active,
         checkedOutAt: serverTimestamp(),
+        dueAt,
         returnedAt: null,
+        notice3SentAt: null,
+        noticeDaySentAt: null,
+        fineAppliedAt: null,
+        fineCents: 0,
         createdByUid: actorUid,
         closedByUid: null,
       });
@@ -113,6 +121,7 @@ export async function checkoutOrPlaceHold({
           status: BOOK_STATUS.checkedOut,
           currentLoanId: loanId,
           currentPatronBarcode: patronBarcode,
+          currentDueAt: dueAt,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -201,6 +210,7 @@ export async function returnBook({
   assertFirebaseReady();
 
   const bookBarcode = requireBarcode(rawBookBarcode, "Book barcode");
+  const dueAt = addDays(new Date(), LOAN_TERM_DAYS);
 
   if (!String(actorUid ?? "").trim()) {
     throw new Error("A signed-in session is required for return actions.");
@@ -282,6 +292,7 @@ export async function returnBook({
           status: BOOK_STATUS.available,
           currentLoanId: null,
           currentPatronBarcode: null,
+          currentDueAt: null,
           holdCount: 0,
           holdQueue: [],
           updatedAt: serverTimestamp(),
@@ -315,7 +326,12 @@ export async function returnBook({
       patronBarcode: nextHold.patronBarcode,
       status: LOAN_STATUS.active,
       checkedOutAt: serverTimestamp(),
+      dueAt,
       returnedAt: null,
+      notice3SentAt: null,
+      noticeDaySentAt: null,
+      fineAppliedAt: null,
+      fineCents: 0,
       createdByUid: actorUid,
       closedByUid: null,
     });
@@ -326,6 +342,7 @@ export async function returnBook({
         status: BOOK_STATUS.checkedOut,
         currentLoanId: newLoanId,
         currentPatronBarcode: nextHold.patronBarcode,
+        currentDueAt: dueAt,
         holdCount: remainingQueue.length,
         holdQueue: remainingQueue,
         updatedAt: serverTimestamp(),
