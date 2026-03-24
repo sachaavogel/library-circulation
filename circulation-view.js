@@ -1,7 +1,12 @@
 import {
+  FINE_CENTS,
   formatTimestamp,
+  formatCurrency,
+  formatDate,
   getBookStatusLabel,
+  getLoanDueDate,
   setFeedbackMessage,
+  toDate,
 } from "./shared.js";
 
 function buildRecordItem({ title, meta }) {
@@ -56,6 +61,44 @@ function appendCell(row, content) {
   row.append(cell);
 }
 
+function getBookDueLabel(book) {
+  if (!book?.currentDueAt) {
+    return "—";
+  }
+  return formatDate(book.currentDueAt);
+}
+
+function getBookLateFeeLabel(book) {
+  const dueDate = toDate(book?.currentDueAt);
+  if (!dueDate) {
+    return "—";
+  }
+  const isOverdue = new Date() > dueDate;
+  return isOverdue ? formatCurrency(FINE_CENTS) : "—";
+}
+
+function buildLoanMeta(loan, now) {
+  const parts = [];
+  const dueDate = getLoanDueDate(loan, now);
+  const dueLabel = formatDate(dueDate);
+  if (dueLabel && dueLabel !== "—") {
+    parts.push(`Due ${dueLabel}`);
+  }
+
+  const checkedOutLabel = formatTimestamp(loan.checkedOutAt);
+  if (checkedOutLabel && checkedOutLabel !== "—") {
+    parts.push(`Checked out ${checkedOutLabel}`);
+  }
+
+  const isOverdue = dueDate ? now > dueDate : false;
+  if (isOverdue) {
+    const feeLabel = formatCurrency(FINE_CENTS);
+    parts.push(`Late fee ${feeLabel}`);
+  }
+
+  return parts.length ? parts.join(" • ") : "—";
+}
+
 export function createCirculationView({
   onLoadPatron,
   onCheckout,
@@ -96,6 +139,7 @@ export function createCirculationView({
   const patronCreated = document.getElementById("active-patron-created");
   const activeLoanCount = document.getElementById("active-loan-count");
   const activeHoldCount = document.getElementById("active-hold-count");
+  const activeFeeTotal = document.getElementById("active-fee-total");
   const activeLoansList = document.getElementById("active-loans-list");
   const activeHoldsList = document.getElementById("active-holds-list");
   const recentLoansList = document.getElementById("recent-loans-list");
@@ -294,6 +338,9 @@ export function createCirculationView({
       patronCreated.textContent = "";
       activeLoanCount.textContent = "0";
       activeHoldCount.textContent = "0";
+      if (activeFeeTotal) {
+        activeFeeTotal.textContent = formatCurrency(0);
+      }
       currentPatron = null;
       closeProfileModal();
       if (editProfileButton) {
@@ -320,6 +367,7 @@ export function createCirculationView({
       }
     },
     renderPatronSession(session) {
+      const now = new Date();
       currentPatron = session.patron;
       patronLabel.textContent = session.patron.name || "Name required";
       patronCreated.textContent = session.createdOnLoad
@@ -327,6 +375,21 @@ export function createCirculationView({
         : `Barcode ${session.patron.barcode} • Last seen ${formatTimestamp(session.patron.lastSeenAt)}`;
       activeLoanCount.textContent = String(session.activeLoans.length);
       activeHoldCount.textContent = String(session.activeHolds.length);
+      if (activeFeeTotal) {
+        const feeTotalCents = session.activeLoans.reduce((total, loan) => {
+          const dueDate = getLoanDueDate(loan, now);
+          const isOverdue = dueDate ? now > dueDate : false;
+          const appliedFee = Number(loan.fineCents || 0);
+          if (appliedFee > 0) {
+            return total + appliedFee;
+          }
+          if (isOverdue) {
+            return total + FINE_CENTS;
+          }
+          return total;
+        }, 0);
+        activeFeeTotal.textContent = formatCurrency(feeTotalCents);
+      }
 
       profileRequired = Boolean(session.needsProfile);
       if (profileRequired) {
@@ -344,7 +407,7 @@ export function createCirculationView({
         session.activeLoans.map((loan) =>
           buildRecordItem({
             title: loan.bookTitle,
-            meta: `${loan.bookBarcode} • checked out ${formatTimestamp(loan.checkedOutAt)}`,
+            meta: buildLoanMeta(loan, now),
           })
         ),
         "No active loans."
@@ -367,7 +430,7 @@ export function createCirculationView({
           session.recentLoans.map((loan) =>
             buildRecordItem({
               title: loan.bookTitle,
-              meta: `${loan.bookBarcode} • ${loan.status} • ${formatTimestamp(loan.checkedOutAt)}`,
+              meta: `${loan.status} • ${formatTimestamp(loan.checkedOutAt)}`,
             })
           ),
           "No recent activity."
@@ -430,6 +493,8 @@ export function createCirculationView({
         appendCell(row, book.barcode);
         appendCell(row, book.title);
         appendCell(row, createStatusPill(book.status));
+        appendCell(row, getBookDueLabel(book));
+        appendCell(row, getBookLateFeeLabel(book));
         const patronBarcode = book.currentPatronBarcode;
         const patronName = patronBarcode
           ? patronNameMap.get(patronBarcode) || ""

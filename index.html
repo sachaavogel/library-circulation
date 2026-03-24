@@ -189,8 +189,11 @@
                 <span>12-digit barcode</span>
                 <input
                   id="book-barcode"
-                  type="text"
+                  type="tel"
                   inputmode="numeric"
+                  pattern="[0-9]*"
+                  autocapitalize="off"
+                  autocorrect="off"
                   autocomplete="off"
                   placeholder="000123456789"
                   maxlength="12"
@@ -241,8 +244,11 @@
                     <span>12-digit barcode</span>
                     <input
                       id="edit-book-barcode"
-                      type="text"
+                      type="tel"
                       inputmode="numeric"
+                      pattern="[0-9]*"
+                      autocapitalize="off"
+                      autocorrect="off"
                       autocomplete="off"
                       placeholder="000123456789"
                       maxlength="12"
@@ -286,6 +292,8 @@
                       <th scope="col">Barcode</th>
                       <th scope="col">Title</th>
                       <th scope="col">Status</th>
+                      <th scope="col">Due</th>
+                      <th scope="col">Late fee</th>
                       <th scope="col">Current patron</th>
                       <th scope="col">Actions</th>
                     </tr>
@@ -329,8 +337,11 @@
                   <span>Patron barcode</span>
                   <input
                     id="patron-barcode"
-                    type="text"
+                    type="tel"
                     inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocapitalize="off"
+                    autocorrect="off"
                     autocomplete="off"
                     placeholder="000123456789"
                     maxlength="12"
@@ -389,6 +400,8 @@
                         <th scope="col">Barcode</th>
                         <th scope="col">Title</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Due</th>
+                        <th scope="col">Late fee</th>
                         <th scope="col">Current patron</th>
                       </tr>
                     </thead>
@@ -446,6 +459,10 @@
                     <span class="metric-label">Queued holds</span>
                     <strong id="active-hold-count">0</strong>
                   </article>
+                  <article class="metric-card">
+                    <span class="metric-label">Fees due</span>
+                    <strong id="active-fee-total">$0.00</strong>
+                  </article>
                 </div>
 
                 <div class="list-grid">
@@ -490,8 +507,11 @@
                   <span>Book barcode</span>
                   <input
                     id="checkout-book-barcode"
-                    type="text"
+                    type="tel"
                     inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocapitalize="off"
+                    autocorrect="off"
                     autocomplete="off"
                     placeholder="000123456789"
                     maxlength="12"
@@ -517,8 +537,11 @@
                   <span>Book barcode</span>
                   <input
                     id="return-book-barcode"
-                    type="text"
+                    type="tel"
                     inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocapitalize="off"
+                    autocorrect="off"
                     autocomplete="off"
                     placeholder="000123456789"
                     maxlength="12"

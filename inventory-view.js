@@ -1,6 +1,10 @@
 import {
+  FINE_CENTS,
   getBookStatusLabel,
+  formatCurrency,
+  formatDate,
   setFeedbackMessage,
+  toDate,
 } from "./shared.js";
 
 function createStatusPill(status) {
@@ -23,6 +27,22 @@ function appendCell(row, content) {
   }
 
   row.append(cell);
+}
+
+function getDueLabel(book) {
+  if (!book?.currentDueAt) {
+    return "—";
+  }
+  return formatDate(book.currentDueAt);
+}
+
+function getLateFeeLabel(book) {
+  const dueDate = toDate(book?.currentDueAt);
+  if (!dueDate) {
+    return "—";
+  }
+  const isOverdue = new Date() > dueDate;
+  return isOverdue ? formatCurrency(FINE_CENTS) : "—";
 }
 
 export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemoveBook }) {
@@ -194,6 +214,8 @@ export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemov
         appendCell(row, book.barcode);
         appendCell(row, book.title);
         appendCell(row, createStatusPill(book.status));
+        appendCell(row, getDueLabel(book));
+        appendCell(row, getLateFeeLabel(book));
         const patronBarcode = book.currentPatronBarcode;
         const patronName = patronBarcode
           ? patronNameMap.get(patronBarcode) || ""

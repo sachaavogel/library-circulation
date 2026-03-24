@@ -36,6 +36,7 @@ body {
   color: var(--ink);
   background:
     linear-gradient(180deg, #f7f9ff 0%, #e3edff 100%);
+  -webkit-text-size-adjust: 100%;
 }
 
 button,
@@ -47,6 +48,14 @@ table {
 button,
 input {
   border: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -561,11 +570,11 @@ h4 {
 .inventory-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 720px;
+  min-width: 880px;
 }
 
 .inventory-table--compact {
-  min-width: 640px;
+  min-width: 820px;
 }
 
 .inventory-table th,
@@ -857,5 +866,19 @@ h4 {
 
   .table-wrap {
     max-height: 260px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (hover: none) {
+  .button:hover,
+  .button:focus-visible,
+  .field input:focus {
+    transform: none;
   }
 }

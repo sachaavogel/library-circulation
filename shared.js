@@ -23,16 +23,31 @@ export const HOLD_STATUS = Object.freeze({
   cancelled: "cancelled",
 });
 
+export const LOAN_TERM_DAYS = 21;
+export const DUE_WARNING_DAYS = 3;
+export const GRACE_DAYS = 2;
+export const FINE_CENTS = 800;
+
 export const TAB = Object.freeze({
   inventory: "inventory",
   circulation: "circulation",
 });
 
 const BARCODE_PATTERN = /^\d{12}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const timestampFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
   timeStyle: "short",
+});
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
+
+const currencyFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD",
 });
 
 export function normalizeBarcodeInput(rawValue) {
@@ -100,18 +115,68 @@ export function normalizeSearchQuery(rawValue) {
 }
 
 export function formatTimestamp(value) {
+  const date = toDate(value);
+  return date ? timestampFormatter.format(date) : "—";
+}
+
+export function formatDate(value) {
+  const date = toDate(value);
+  return date ? dateFormatter.format(date) : "—";
+}
+
+export function formatCurrency(cents) {
+  const amount = Number(cents || 0) / 100;
+  return currencyFormatter.format(amount);
+}
+
+export function toDate(value) {
   if (!value) {
-    return "—";
+    return null;
   }
 
-  const date =
-    typeof value?.toDate === "function"
-      ? value.toDate()
-      : value instanceof Date
-        ? value
-        : null;
+  if (typeof value?.toDate === "function") {
+    return value.toDate();
+  }
 
-  return date ? timestampFormatter.format(date) : "—";
+  if (value instanceof Date) {
+    return value;
+  }
+
+  return null;
+}
+
+export function addDays(value, days) {
+  const date = toDate(value) || new Date();
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+export function startOfDay(value) {
+  const date = toDate(value);
+  if (!date) {
+    return null;
+  }
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+export function diffInDays(target, base = new Date()) {
+  const targetDay = startOfDay(target);
+  const baseDay = startOfDay(base);
+  if (!targetDay || !baseDay) {
+    return 0;
+  }
+  return Math.round((targetDay.getTime() - baseDay.getTime()) / DAY_MS);
+}
+
+export function getLoanDueDate(loan, fallbackDate = new Date()) {
+  const dueAt = toDate(loan?.dueAt);
+  if (dueAt) {
+    return dueAt;
+  }
+
+  const checkedOutAt = toDate(loan?.checkedOutAt) || fallbackDate;
+  return addDays(checkedOutAt, LOAN_TERM_DAYS);
 }
 
 export function makeLoanId(bookBarcode) {

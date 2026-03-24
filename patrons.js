@@ -87,6 +87,7 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
       lastSeenAt: serverTimestamp(),
       activeLoanCount: 0,
       activeHoldCount: 0,
+      fineCents: 0,
       status: "active",
     });
   });

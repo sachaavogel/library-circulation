@@ -26,15 +26,23 @@ service cloud.firestore {
         "lastSeenAt",
         "activeLoanCount",
         "activeHoldCount",
+        "fineCents",
         "status"
       ]);
+    }
+
+    function guestPatronFineAllowed() {
+      return (resource.data == null && request.resource.data.fineCents == 0) ||
+        (resource.data != null &&
+          request.resource.data.fineCents == resource.data.fineCents);
     }
 
     function guestPatronWriteAllowed(patronId) {
       return patronKeysAreValid() &&
         guestSessionExists() &&
         guestSessionPatron() == patronId &&
-        request.resource.data.barcode == patronId;
+        request.resource.data.barcode == patronId &&
+        guestPatronFineAllowed();
     }
 
     function guestBookUpdateAllowed(bookId) {
@@ -45,6 +53,7 @@ service cloud.firestore {
         "status",
         "currentLoanId",
         "currentPatronBarcode",
+        "currentDueAt",
         "holdCount",
         "holdQueue",
         "lastHoldPosition",
@@ -63,12 +72,21 @@ service cloud.firestore {
         "patronBarcode",
         "status",
         "checkedOutAt",
+        "dueAt",
         "returnedAt",
+        "notice3SentAt",
+        "noticeDaySentAt",
+        "fineAppliedAt",
+        "fineCents",
         "createdByUid",
         "closedByUid"
       ]) &&
         request.resource.data.status == "active" &&
         request.resource.data.returnedAt == null &&
+        request.resource.data.notice3SentAt == null &&
+        request.resource.data.noticeDaySentAt == null &&
+        request.resource.data.fineAppliedAt == null &&
+        request.resource.data.fineCents == 0 &&
         request.resource.data.closedByUid == null &&
         request.resource.data.createdByUid == request.auth.uid;
     }
@@ -79,7 +97,12 @@ service cloud.firestore {
         "patronBarcode",
         "status",
         "checkedOutAt",
+        "dueAt",
         "returnedAt",
+        "notice3SentAt",
+        "noticeDaySentAt",
+        "fineAppliedAt",
+        "fineCents",
         "createdByUid",
         "closedByUid"
       ]) &&
@@ -88,7 +111,12 @@ service cloud.firestore {
         request.resource.data.returnedAt != null &&
         request.resource.data.closedByUid == request.auth.uid &&
         request.resource.data.bookBarcode == resource.data.bookBarcode &&
-        request.resource.data.patronBarcode == resource.data.patronBarcode;
+        request.resource.data.patronBarcode == resource.data.patronBarcode &&
+        request.resource.data.dueAt == resource.data.dueAt &&
+        request.resource.data.notice3SentAt == resource.data.notice3SentAt &&
+        request.resource.data.noticeDaySentAt == resource.data.noticeDaySentAt &&
+        request.resource.data.fineAppliedAt == resource.data.fineAppliedAt &&
+        request.resource.data.fineCents == resource.data.fineCents;
     }
 
     function guestHoldCreateAllowed() {

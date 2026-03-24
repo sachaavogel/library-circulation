@@ -105,17 +105,18 @@ export async function addBook({ barcode, title }) {
       throw new Error(`Book barcode ${normalizedBarcode} already exists.`);
     }
 
-    transaction.set(bookRef, {
-      barcode: normalizedBarcode,
-      title: cleanTitle,
-      normalizedTitle,
-      status: BOOK_STATUS.available,
-      currentLoanId: null,
-      currentPatronBarcode: null,
-      holdCount: 0,
-      holdQueue: [],
-      lastHoldPosition: 0,
-      createdAt: serverTimestamp(),
+      transaction.set(bookRef, {
+        barcode: normalizedBarcode,
+        title: cleanTitle,
+        normalizedTitle,
+        status: BOOK_STATUS.available,
+        currentLoanId: null,
+        currentPatronBarcode: null,
+        currentDueAt: null,
+        holdCount: 0,
+        holdQueue: [],
+        lastHoldPosition: 0,
+        createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
   });
@@ -127,6 +128,7 @@ export async function addBook({ barcode, title }) {
     status: BOOK_STATUS.available,
     currentLoanId: null,
     currentPatronBarcode: null,
+    currentDueAt: null,
     holdCount: 0,
   };
 
