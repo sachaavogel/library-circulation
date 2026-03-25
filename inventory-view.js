@@ -45,12 +45,20 @@ function getLateFeeLabel(book) {
   return isOverdue ? formatCurrency(FINE_CENTS) : "—";
 }
 
-export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemoveBook }) {
+export function createInventoryView({
+  onAddBook,
+  onSearch,
+  onUpdateBook,
+  onRemoveBook,
+  onFilterChange,
+}) {
   const form = document.getElementById("add-book-form");
   const barcodeInput = document.getElementById("book-barcode");
   const titleInput = document.getElementById("book-title");
   const submitButton = document.getElementById("add-book-submit");
   const searchInput = document.getElementById("inventory-search");
+  const statusFilter = document.getElementById("inventory-filter-status");
+  const patronFilter = document.getElementById("inventory-filter-patron");
   const feedback = document.getElementById("inventory-feedback");
   const tableBody = document.getElementById("inventory-body");
   const emptyState = document.getElementById("inventory-empty");
@@ -75,6 +83,22 @@ export function createInventoryView({ onAddBook, onSearch, onUpdateBook, onRemov
   searchInput.addEventListener("input", () => {
     onSearch(searchInput.value);
   });
+
+  if (onFilterChange && (statusFilter || patronFilter)) {
+    const emitFilters = () => {
+      onFilterChange({
+        status: statusFilter?.value || "all",
+        patron: patronFilter?.value || "",
+      });
+    };
+
+    if (statusFilter) {
+      statusFilter.addEventListener("change", emitFilters);
+    }
+    if (patronFilter) {
+      patronFilter.addEventListener("input", emitFilters);
+    }
+  }
 
   if (editForm) {
     editForm.addEventListener("submit", async (event) => {

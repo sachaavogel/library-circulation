@@ -461,6 +461,17 @@ h4 {
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+.field select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+}
+
 .field input:focus {
   outline: none;
   border-color: rgba(31, 107, 255, 0.6);
@@ -556,6 +567,29 @@ h4 {
   justify-content: space-between;
   align-items: end;
   margin-bottom: 1rem;
+}
+
+.inventory-filters {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(200px, 1fr) minmax(160px, 0.7fr) minmax(200px, 1fr);
+  width: min(640px, 100%);
+}
+
+.circulation-home__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.circulation-home__filters {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(200px, 1fr) minmax(160px, 0.7fr) minmax(200px, 1fr);
+  width: min(640px, 100%);
 }
 
 .table-wrap {
@@ -866,6 +900,11 @@ h4 {
 
   .table-wrap {
     max-height: 260px;
+  }
+
+  .inventory-filters,
+  .circulation-home__filters {
+    grid-template-columns: 1fr;
   }
 
   input,

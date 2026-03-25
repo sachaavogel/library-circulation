@@ -222,15 +222,35 @@
                   <h3>Inventory Table</h3>
                   <p>Search by title or barcode.</p>
                 </div>
-                <label class="field field--search">
-                  <span class="sr-only">Search inventory</span>
-                  <input
-                    id="inventory-search"
-                    type="search"
-                    autocomplete="off"
-                    placeholder="Search inventory"
-                  />
-                </label>
+                <div class="inventory-filters">
+                  <label class="field field--search">
+                    <span class="sr-only">Search inventory</span>
+                    <input
+                      id="inventory-search"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Search inventory"
+                    />
+                  </label>
+                  <label class="field">
+                    <span class="sr-only">Filter by status</span>
+                    <select id="inventory-filter-status">
+                      <option value="all">All statuses</option>
+                      <option value="available">Available</option>
+                      <option value="checked_out">Checked out</option>
+                      <option value="on_hold">On hold</option>
+                    </select>
+                  </label>
+                  <label class="field field--search">
+                    <span class="sr-only">Filter by patron</span>
+                    <input
+                      id="inventory-filter-patron"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Filter by patron"
+                    />
+                  </label>
+                </div>
               </div>
 
               <form id="edit-book-form" class="panel panel--inset form-card form-card--edit" hidden>
@@ -363,15 +383,35 @@
                     <p class="section-tag">Circulation home</p>
                     <h3>Library Snapshot</h3>
                   </div>
-                  <label class="field field--search">
-                    <span class="sr-only">Search inventory</span>
-                    <input
-                      id="circulation-inventory-search"
-                      type="search"
-                      autocomplete="off"
-                      placeholder="Search inventory"
-                    />
-                  </label>
+                  <div class="circulation-home__filters">
+                    <label class="field field--search">
+                      <span class="sr-only">Search inventory</span>
+                      <input
+                        id="circulation-inventory-search"
+                        type="search"
+                        autocomplete="off"
+                        placeholder="Search by title or barcode"
+                      />
+                    </label>
+                    <label class="field">
+                      <span class="sr-only">Filter by status</span>
+                      <select id="circulation-filter-status">
+                        <option value="all">All statuses</option>
+                        <option value="available">Available</option>
+                        <option value="checked_out">Checked out</option>
+                        <option value="on_hold">On hold</option>
+                      </select>
+                    </label>
+                    <label class="field field--search">
+                      <span class="sr-only">Filter by patron</span>
+                      <input
+                        id="circulation-filter-patron"
+                        type="search"
+                        autocomplete="off"
+                        placeholder="Filter by patron"
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div class="metric-row metric-row--four">

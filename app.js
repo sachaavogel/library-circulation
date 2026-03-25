@@ -67,11 +67,18 @@ const state = {
   activeSession: null,
   inventoryUnsubscribe: null,
   circulationInventoryQuery: "",
+  inventoryFilters: {
+    status: "all",
+    patron: "",
+  },
+  circulationFilters: {
+    status: "all",
+    patron: "",
+  },
   patronNameCache: new Map(),
   profileRequired: false,
 };
 
-const DUE_PROCESSING_STORAGE_KEY = "library_due_processing_date";
 let dueProcessingTimer = null;
 
 const loginView = createLoginView({
@@ -84,6 +91,7 @@ const inventoryView = createInventoryView({
   onSearch: handleInventorySearch,
   onUpdateBook: handleUpdateBook,
   onRemoveBook: handleRemoveBook,
+  onFilterChange: handleInventoryFiltersChange,
 });
 
 const circulationView = createCirculationView({
@@ -94,6 +102,7 @@ const circulationView = createCirculationView({
   onSendReceipt: handleSendPatronReceipt,
   onEndPatron: handleEndPatron,
   onHomeSearch: handleCirculationInventorySearch,
+  onHomeFilterChange: handleCirculationFiltersChange,
 });
 
 inventoryTabButton.addEventListener("click", () => selectTab(TAB.inventory));
@@ -253,14 +262,8 @@ async function runDueProcessing() {
     return;
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10);
-  if (localStorage.getItem(DUE_PROCESSING_STORAGE_KEY) === todayKey) {
-    return;
-  }
-
   try {
     await processDueActions();
-    localStorage.setItem(DUE_PROCESSING_STORAGE_KEY, todayKey);
   } catch (error) {
     console.warn("Due processing failed.", error);
   }
@@ -287,11 +290,12 @@ async function processDueActions() {
 
     if (!loan.dueAt && loan.checkedOutAt) {
       updates.push(updateDoc(docSnap.ref, { dueAt: dueDate }));
-      if (loan.bookBarcode) {
-        updates.push(
-          updateDoc(doc(db, "books", loan.bookBarcode), { currentDueAt: dueDate })
-        );
-      }
+    }
+
+    if (loan.bookBarcode) {
+      updates.push(
+        updateDoc(doc(db, "books", loan.bookBarcode), { currentDueAt: dueDate })
+      );
     }
 
     if (daysUntilDue === DUE_WARNING_DAYS && !loan.notice3SentAt) {
@@ -403,10 +407,19 @@ async function beginInventoryWatch() {
 
 function handleInventorySearch(query) {
   const results = searchInventory(query);
-  inventoryView.renderBooks(results, state.patronNameCache);
+  const filtered = applyBookFilters(results, state.inventoryFilters);
+  inventoryView.renderBooks(filtered, state.patronNameCache);
   if (isAdminSession()) {
     hydratePatronNames(results);
   }
+}
+
+function handleInventoryFiltersChange(filters) {
+  state.inventoryFilters = {
+    ...state.inventoryFilters,
+    ...(filters || {}),
+  };
+  handleInventorySearch(inventoryView.getSearchQuery());
 }
 
 function handleCirculationInventorySearch(query) {
@@ -417,14 +430,59 @@ function handleCirculationInventorySearch(query) {
   refreshInventoryViews();
 }
 
+function handleCirculationFiltersChange(filters) {
+  if (!isAdminSession()) {
+    return;
+  }
+  state.circulationFilters = {
+    ...state.circulationFilters,
+    ...(filters || {}),
+  };
+  refreshInventoryViews();
+}
+
+function applyBookFilters(books, filters) {
+  const statusFilter = String(filters?.status || "all");
+  const patronFilter = String(filters?.patron || "").trim().toLowerCase();
+
+  return books.filter((book) => {
+    if (statusFilter === "available" && book.status !== "available") {
+      return false;
+    }
+    if (statusFilter === "checked_out" && book.status !== "checked_out") {
+      return false;
+    }
+    if (statusFilter === "on_hold" && Number(book.holdCount || 0) <= 0) {
+      return false;
+    }
+
+    if (!patronFilter) {
+      return true;
+    }
+
+    const patronBarcode = String(book.currentPatronBarcode || "");
+    const patronName = patronBarcode
+      ? String(state.patronNameCache.get(patronBarcode) || "")
+      : "";
+    const matchesBarcode = patronBarcode.includes(patronFilter);
+    const matchesName = patronName.toLowerCase().includes(patronFilter);
+    return matchesBarcode || matchesName;
+  });
+}
+
 function refreshInventoryViews() {
   const inventoryResults = searchInventory(inventoryView.getSearchQuery());
-  inventoryView.renderBooks(inventoryResults, state.patronNameCache);
+  const filteredInventory = applyBookFilters(inventoryResults, state.inventoryFilters);
+  inventoryView.renderBooks(filteredInventory, state.patronNameCache);
 
   const circulationResults = searchInventory(state.circulationInventoryQuery);
+  const filteredCirculationResults = applyBookFilters(
+    circulationResults,
+    state.circulationFilters
+  );
   if (isAdminSession()) {
     circulationView.renderInventory(
-      circulationResults,
+      filteredCirculationResults,
       getInventoryStats(),
       state.patronNameCache
     );
