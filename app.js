@@ -474,7 +474,10 @@ function refreshInventoryViews() {
   const circulationResults = searchInventory(state.circulationInventoryQuery);
   const filteredCirculationResults = applyBookFilters(
     circulationResults,
-    state.circulationFilters
+    {
+      status: state.circulationFilters.status,
+      patron: "all",
+    }
   );
   if (isAdminSession()) {
     circulationView.renderInventory(
@@ -484,7 +487,6 @@ function refreshInventoryViews() {
     );
     const patronOptions = buildPatronFilterOptions(fullInventory);
     inventoryView.setPatronFilterOptions(patronOptions);
-    circulationView.setPatronFilterOptions(patronOptions);
   }
 
   if (isAdminSession()) {
