@@ -88,7 +88,7 @@ export function createInventoryView({
     const emitFilters = () => {
       onFilterChange({
         status: statusFilter?.value || "all",
-        patron: patronFilter?.value || "",
+        patron: patronFilter?.value || "all",
       });
     };
 
@@ -96,7 +96,7 @@ export function createInventoryView({
       statusFilter.addEventListener("change", emitFilters);
     }
     if (patronFilter) {
-      patronFilter.addEventListener("input", emitFilters);
+      patronFilter.addEventListener("change", emitFilters);
     }
   }
 
@@ -218,6 +218,26 @@ export function createInventoryView({
     },
     getSearchQuery() {
       return searchInput.value;
+    },
+    setPatronFilterOptions(options) {
+      if (!patronFilter) {
+        return;
+      }
+      const current = patronFilter.value || "all";
+      patronFilter.replaceChildren();
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "all";
+      defaultOption.textContent = "All patrons";
+      patronFilter.append(defaultOption);
+      options.forEach((option) => {
+        const item = document.createElement("option");
+        item.value = option.value;
+        item.textContent = option.label;
+        patronFilter.append(item);
+      });
+      patronFilter.value = options.some((option) => option.value === current)
+        ? current
+        : "all";
     },
     renderBooks(books, patronNameMap = new Map()) {
       tableBody.replaceChildren();

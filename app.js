@@ -443,7 +443,7 @@ function handleCirculationFiltersChange(filters) {
 
 function applyBookFilters(books, filters) {
   const statusFilter = String(filters?.status || "all");
-  const patronFilter = String(filters?.patron || "").trim().toLowerCase();
+  const patronFilter = String(filters?.patron || "all").trim();
 
   return books.filter((book) => {
     if (statusFilter === "available" && book.status !== "available") {
@@ -456,21 +456,17 @@ function applyBookFilters(books, filters) {
       return false;
     }
 
-    if (!patronFilter) {
+    if (!patronFilter || patronFilter === "all") {
       return true;
     }
 
     const patronBarcode = String(book.currentPatronBarcode || "");
-    const patronName = patronBarcode
-      ? String(state.patronNameCache.get(patronBarcode) || "")
-      : "";
-    const matchesBarcode = patronBarcode.includes(patronFilter);
-    const matchesName = patronName.toLowerCase().includes(patronFilter);
-    return matchesBarcode || matchesName;
+    return patronBarcode === patronFilter;
   });
 }
 
 function refreshInventoryViews() {
+  const fullInventory = searchInventory("");
   const inventoryResults = searchInventory(inventoryView.getSearchQuery());
   const filteredInventory = applyBookFilters(inventoryResults, state.inventoryFilters);
   inventoryView.renderBooks(filteredInventory, state.patronNameCache);
@@ -486,11 +482,32 @@ function refreshInventoryViews() {
       getInventoryStats(),
       state.patronNameCache
     );
+    const patronOptions = buildPatronFilterOptions(fullInventory);
+    inventoryView.setPatronFilterOptions(patronOptions);
+    circulationView.setPatronFilterOptions(patronOptions);
   }
 
   if (isAdminSession()) {
     hydratePatronNames(circulationResults.concat(inventoryResults));
   }
+}
+
+function buildPatronFilterOptions(books) {
+  const patrons = new Map();
+
+  books.forEach((book) => {
+    const barcode = book.currentPatronBarcode;
+    if (!barcode) {
+      return;
+    }
+    const name = state.patronNameCache.get(barcode);
+    const label = name ? `${name} (${barcode})` : barcode;
+    patrons.set(barcode, label);
+  });
+
+  return [...patrons.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([value, label]) => ({ value, label }));
 }
 
 async function hydratePatronNames(books) {

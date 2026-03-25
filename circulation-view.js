@@ -107,6 +107,7 @@ export function createCirculationView({
   onSendReceipt,
   onEndPatron,
   onHomeSearch,
+  onHomeFilterChange,
 }) {
   const patronForm = document.getElementById("patron-form");
   const patronInput = document.getElementById("patron-barcode");
@@ -114,6 +115,8 @@ export function createCirculationView({
 
   const homePanel = document.getElementById("circulation-home");
   const homeSearch = document.getElementById("circulation-inventory-search");
+  const homeStatusFilter = document.getElementById("circulation-filter-status");
+  const homePatronFilter = document.getElementById("circulation-filter-patron");
   const homeTableBody = document.getElementById("circulation-inventory-body");
   const homeEmpty = document.getElementById("circulation-inventory-empty");
   const totalBooks = document.getElementById("circulation-total-books");
@@ -167,6 +170,22 @@ export function createCirculationView({
     homeSearch.addEventListener("input", () => {
       onHomeSearch(homeSearch.value);
     });
+  }
+
+  if (onHomeFilterChange && (homeStatusFilter || homePatronFilter)) {
+    const emitFilters = () => {
+      onHomeFilterChange({
+        status: homeStatusFilter?.value || "all",
+        patron: homePatronFilter?.value || "all",
+      });
+    };
+
+    if (homeStatusFilter) {
+      homeStatusFilter.addEventListener("change", emitFilters);
+    }
+    if (homePatronFilter) {
+      homePatronFilter.addEventListener("change", emitFilters);
+    }
   }
 
   if (profileForm) {
@@ -507,6 +526,26 @@ export function createCirculationView({
         appendCell(row, patronLabelText);
         homeTableBody.append(row);
       });
+    },
+    setPatronFilterOptions(options) {
+      if (!homePatronFilter) {
+        return;
+      }
+      const current = homePatronFilter.value || "all";
+      homePatronFilter.replaceChildren();
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "all";
+      defaultOption.textContent = "All patrons";
+      homePatronFilter.append(defaultOption);
+      options.forEach((option) => {
+        const item = document.createElement("option");
+        item.value = option.value;
+        item.textContent = option.label;
+        homePatronFilter.append(item);
+      });
+      homePatronFilter.value = options.some((option) => option.value === current)
+        ? current
+        : "all";
     },
     getHomeSearchQuery() {
       return homeSearch?.value ?? "";
