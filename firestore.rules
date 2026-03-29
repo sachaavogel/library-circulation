@@ -34,13 +34,13 @@ service cloud.firestore {
     function guestPatronFineAllowed() {
       return (resource.data == null && request.resource.data.fineCents == 0) ||
         (resource.data != null &&
-          request.resource.data.fineCents == resource.data.fineCents);
+          ((resource.data.fineCents == null && request.resource.data.fineCents == 0) ||
+            (resource.data.fineCents != null &&
+              request.resource.data.fineCents == resource.data.fineCents)));
     }
 
     function guestPatronWriteAllowed(patronId) {
       return patronKeysAreValid() &&
-        guestSessionExists() &&
-        guestSessionPatron() == patronId &&
         request.resource.data.barcode == patronId &&
         guestPatronFineAllowed();
     }

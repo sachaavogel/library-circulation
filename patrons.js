@@ -61,8 +61,11 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
       const existingData = patronSnapshot.data() || {};
       const existingName = existingData.name || null;
       const existingEmail = existingData.email || null;
+      const existingFineCents =
+        typeof existingData.fineCents === "number" ? existingData.fineCents : null;
       const shouldSetName = name && !existingName;
       const shouldSetEmail = email && !existingEmail;
+      const shouldSetFine = existingFineCents == null;
       created = false;
       transaction.set(
         patronRef,
@@ -72,6 +75,7 @@ export async function ensurePatron(rawPatronBarcode, options = {}) {
           status: "active",
           ...(shouldSetName ? { name } : {}),
           ...(shouldSetEmail ? { email } : {}),
+          ...(shouldSetFine ? { fineCents: 0 } : {}),
         },
         { merge: true }
       );

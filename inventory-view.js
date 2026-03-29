@@ -219,6 +219,12 @@ export function createInventoryView({
     getSearchQuery() {
       return searchInput.value;
     },
+    getFilters() {
+      return {
+        status: statusFilter?.value || "all",
+        patron: patronFilter?.value || "all",
+      };
+    },
     setPatronFilterOptions(options) {
       if (!patronFilter) {
         return;
