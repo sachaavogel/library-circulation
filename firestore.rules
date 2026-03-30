@@ -31,18 +31,19 @@ service cloud.firestore {
       ]);
     }
 
-    function guestPatronFineAllowed() {
-      return (resource.data == null && request.resource.data.fineCents == 0) ||
-        (resource.data != null &&
-          ((resource.data.fineCents == null && request.resource.data.fineCents == 0) ||
-            (resource.data.fineCents != null &&
-              request.resource.data.fineCents == resource.data.fineCents)));
-    }
-
     function guestPatronWriteAllowed(patronId) {
       return patronKeysAreValid() &&
         request.resource.data.barcode == patronId &&
-        guestPatronFineAllowed();
+        (
+          !request.resource.data.keys().hasAny(["fineCents"]) ||
+          (resource.data == null && request.resource.data.fineCents == 0) ||
+          (resource.data != null &&
+            (
+              (resource.data.fineCents == null && request.resource.data.fineCents == 0) ||
+              request.resource.data.fineCents == resource.data.fineCents
+            )
+          )
+        );
     }
 
     function guestBookUpdateAllowed(bookId) {
